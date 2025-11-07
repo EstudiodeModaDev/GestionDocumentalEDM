@@ -1,0 +1,102 @@
+/* === Fondo principal de bienvenida === */
+.we-hero {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+
+  /* 🔹 Fondo con la imagen corporativa */
+  background: url("../../assets/fondo-app2.png") center/cover no-repeat;
+}
+
+
+/* 🔹 Capa oscura con degradado para mejorar legibilidad */
+.we-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.2) 0%,
+    rgba(0, 0, 0, 0.55) 80%
+  );
+  backdrop-filter: blur(1.5px);
+  z-index: 1;
+  opacity: 0;
+  animation: fadeUp .6s ease-out 0s forwards;
+  transform: none; /* evita que suba la capa */
+}
+
+/* === Contenedor de texto === */
+.we-container {
+  z-index: 2;
+  max-width: 750px;
+  padding: 2rem;
+  color: #fff;
+}
+
+.we-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 0.5rem;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.we-brand {
+  color: #acd3ff;
+}
+
+.we-subtitle {
+  font-size: 1.1rem;
+  color: #f1f5f9; /* un poco más claro que antes */
+  margin-bottom: 1.5rem;
+  text-shadow: 0 3px 4px rgba(0,0,0,0.6); /* sombra más profunda */
+}
+
+/* === Botón de acción === */
+.we-actions .we-ghost {
+  background: transparent;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  padding: 0.6rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.we-actions .we-ghost:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+/* === Animaciones de entrada (fade + slide-up) === */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Estado inicial (evita parpadeos) */
+.we-title,
+.we-subtitle,
+.we-actions { opacity: 0; transform: translateY(12px); }
+
+/* Disparo con escalonado */
+.we-title    { animation: fadeUp .7s ease-out .05s forwards; }
+.we-subtitle { animation: fadeUp .7s ease-out .18s forwards; }
+.we-actions  { animation: fadeUp .7s ease-out .30s forwards; }
+
+/* Respeto accesibilidad: sin animaciones si el usuario lo pide */
+@media (prefers-reduced-motion: reduce) {
+  .we-title, .we-subtitle, .we-actions {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

@@ -1,0 +1,70 @@
+.areas-container {
+  padding: 1.5rem 2rem;
+  font-family: "Inter", system-ui, sans-serif;
+  color: #1e293b;
+}
+
+.areas-container {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+
+.areas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.areas-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.btn-nueva-area {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 0.5rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.3s ease;
+}
+
+.btn-nueva-area:hover {
+  background: #1e40af;
+}
+
+.areas-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.areas-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.areas-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.estado.activo {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.estado.inactivo {
+  color: #dc2626;
+  font-weight: 600;
+}
