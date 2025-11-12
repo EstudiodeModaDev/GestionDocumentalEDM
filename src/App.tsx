@@ -1,20 +1,31 @@
+// src/App.tsx
 import * as React from "react";
 import "./App.css";
 
 // === Providers ===
 import { AuthProvider, useAuth } from "./auth/authContext";
 import { GraphServicesProvider, useGraphServices } from "./graph/GrapServicesContext";
+import { useUserRoleFromSP } from "./Funcionalidades/useUserRoleFromSP";
 
 // === Componentes base ===
-import AreasPanel from "./components/Areas/AreasPanel";
 import WelcomeEDM from "./components/Welcome/WelcomeEDM";
+import AreasPanel from "./components/Areas/AreasPanel";
+import CompaniasPanel from "./components/Companias/CompaniasPanel"; // 👈 nuevo módulo
 
 // === Iconos ===
 import homeIcon from "./assets/home.svg";
 import areasIcon from "./assets/areas.svg";
+import companyIcon from "./assets/company.svg"; // 👈 agrega un icono simple (puede ser temporal)
 
-// === Tipos ===
-type Role = "AdministradorGeneral" | "AdministradorArea" | "ResponsableSubarea" | "UsuarioSubarea";
+/* ============================================================
+   🔹 Tipos generales de navegación
+   ============================================================ */
+type Role =
+  | "AdministradorGeneral"
+  | "AdministradorArea"
+  | "ResponsableSubarea"
+  | "UsuarioSubarea";
+
 type RenderCtx = { services?: ReturnType<typeof useGraphServices> };
 
 export type MenuItem = {
@@ -30,7 +41,7 @@ export type MenuItem = {
 export type NavContext = { role: Role };
 
 /* ============================================================
-   Árbol de navegación inicial
+   🔹 Árbol de navegación inicial
    ============================================================ */
 const NAV: MenuItem[] = [
   {
@@ -41,16 +52,23 @@ const NAV: MenuItem[] = [
     roles: ["AdministradorGeneral", "AdministradorArea", "ResponsableSubarea", "UsuarioSubarea"],
   },
   {
+    id: "companias",
+    label: "Compañías",
+    icon: <img src={companyIcon} className="sb-icon" alt="" />, // 👈 nuevo ítem
+    to: <CompaniasPanel />,
+    roles: ["AdministradorGeneral"], // solo visible para el administrador general
+  },
+  {
     id: "areas",
     label: "Áreas",
     icon: <img src={areasIcon} className="sb-icon" alt="" />,
     to: <AreasPanel />,
-    roles: ["AdministradorGeneral", "AdministradorArea"],
+    roles: ["AdministradorGeneral", "AdministradorArea"], // visible para administradores
   },
 ];
 
 /* ============================================================
-   Utilidades básicas
+   🔹 Utilidades internas de navegación
    ============================================================ */
 function filterNavTree(nodes: readonly MenuItem[], ctx: NavContext): MenuItem[] {
   return nodes
@@ -78,44 +96,66 @@ function findById(nodes: readonly MenuItem[], id: string): MenuItem | undefined 
 }
 
 /* ============================================================
-   Header superior simple
+   🔹 Header superior con nombre y rol del usuario
    ============================================================ */
-function HeaderBar(props: { onPrimaryAction?: { label: string; onClick: () => void; disabled?: boolean } | null }) {
-  const { onPrimaryAction } = props;
+function HeaderBar(props: {
+  onPrimaryAction?: { label: string; onClick: () => void; disabled?: boolean } | null;
+  userName?: string;
+  userRole?: string;
+}) {
+  const { onPrimaryAction, userName, userRole } = props;
+
   return (
     <header className="headerRow">
       <div className="header-inner">
+        {/* Izquierda: nombre del sistema */}
         <div className="brand">
           <h1>Gestión Documental EDM</h1>
         </div>
-        {onPrimaryAction && (
-          <button
-            className="btn-logout"
-            onClick={onPrimaryAction.onClick}
-            disabled={onPrimaryAction.disabled}
-            aria-busy={onPrimaryAction.disabled}
-          >
-            {onPrimaryAction.label}
-          </button>
-        )}
+
+        {/* Derecha: usuario + botón cerrar sesión */}
+        <div className="userCluster">
+          {userName && (
+            <div className="userInfo">
+              <span className="userName">{userName}</span>
+              {userRole && <span className="userRole">{userRole}</span>}
+            </div>
+          )}
+
+          {onPrimaryAction && (
+            <button
+              className="btn-logout"
+              onClick={onPrimaryAction.onClick}
+              disabled={onPrimaryAction.disabled}
+              aria-busy={onPrimaryAction.disabled}
+            >
+              {onPrimaryAction.label}
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
 }
 
 /* ============================================================
-   Sidebar (simple)
+   🔹 Sidebar (menú lateral)
    ============================================================ */
-function Sidebar(props: {
+function Sidebar({
+  navs,
+  selected,
+  onSelect,
+  collapsed = false,
+  onToggle,
+}: {
   navs: readonly MenuItem[];
   selected: string;
   onSelect: (k: string) => void;
   collapsed?: boolean;
   onToggle?: () => void;
 }) {
-  const { navs, selected, onSelect, collapsed = false, onToggle } = props;
   return (
-    <aside className={`sidebar ${collapsed ? "sidebar--collapsed" : ""}`} aria-label="Navegación principal">
+    <aside className={`sidebar ${collapsed ? "sidebar--collapsed" : ""}`}>
       <div className="sidebar__header">
         <div className="sb-brand">
           {!collapsed && (
@@ -150,11 +190,12 @@ function Sidebar(props: {
 }
 
 /* ============================================================
-   Shell: controla autenticación y monta/desmonta vistas
+   🔹 Shell: control de autenticación + layout principal
    ============================================================ */
 function Shell() {
   const { ready, account, signIn, signOut } = useAuth();
   const [loadingAuth, setLoadingAuth] = React.useState(false);
+  const [userRole, setUserRole] = React.useState<string>(""); // rol actual del usuario autenticado
   const isLogged = Boolean(account);
 
   const handleAuthClick = async () => {
@@ -178,10 +219,9 @@ function Shell() {
     ? "Cerrar sesión"
     : "Iniciar sesión";
 
-  // Mientras se inicializa MSAL
   if (!ready) {
     return (
-      <div key="loading" className="page layout">
+      <div className="page layout">
         <HeaderBar onPrimaryAction={{ label: "Cargando...", onClick: () => {}, disabled: true }} />
         <section className="page-view">
           <p>Cargando autenticación...</p>
@@ -190,10 +230,9 @@ function Shell() {
     );
   }
 
-  // Si no hay sesión iniciada → Landing (WelcomeEDM)
   if (!isLogged) {
     return (
-      <div key="landing" className="page layout">
+      <div className="page layout">
         <HeaderBar
           onPrimaryAction={{
             label: actionLabel,
@@ -208,27 +247,39 @@ function Shell() {
     );
   }
 
-  // Si hay sesión iniciada → App interna
   return (
-    <div key="app" className="page layout layout--withSidebar">
+    <div className="page layout layout--withSidebar">
       <HeaderBar
         onPrimaryAction={{
           label: actionLabel,
           onClick: handleAuthClick,
           disabled: loadingAuth,
         }}
+        userName={account?.name ?? account?.username ?? "Usuario"}
+        userRole={userRole || "Cargando rol..."}
       />
-      <LoggedApp />
+      <LoggedApp account={account} onRoleResolved={setUserRole} />
     </div>
   );
 }
 
 /* ============================================================
-   LoggedApp: Layout interno
+   🔹 LoggedApp: Sidebar + Contenido dinámico
    ============================================================ */
-function LoggedApp() {
+function LoggedApp({
+  account,
+  onRoleResolved,
+}: {
+  account: any;
+  onRoleResolved?: (role: string) => void;
+}) {
   const services = useGraphServices();
-  const [role] = React.useState<Role>("AdministradorGeneral");
+  const userMail = account?.username ?? account?.userName ?? "";
+  const { role, loading } = useUserRoleFromSP(userMail);
+
+  React.useEffect(() => {
+    if (!loading && onRoleResolved) onRoleResolved(role);
+  }, [role, loading, onRoleResolved]);
 
   const navCtx = React.useMemo<NavContext>(() => ({ role }), [role]);
   const navs = React.useMemo(() => filterNavTree(NAV, navCtx), [navCtx]);
@@ -257,7 +308,13 @@ function LoggedApp() {
       />
       <main className="content content--withSidebar">
         <div className="page-viewport">
-          <div className="page page--fluid">{element}</div>
+          <div className="page page--fluid">
+            {loading ? (
+              <p style={{ padding: "1rem" }}>Cargando permisos...</p>
+            ) : (
+              element
+            )}
+          </div>
         </div>
       </main>
     </div>
@@ -265,7 +322,7 @@ function LoggedApp() {
 }
 
 /* ============================================================
-   App Root con Providers
+   🔹 App Root con Providers
    ============================================================ */
 export default function App() {
   return (
@@ -278,7 +335,7 @@ export default function App() {
 }
 
 /* ============================================================
-   Wrapper: solo provee Graph si hay sesión
+   🔹 Wrapper: solo provee Graph si hay sesión
    ============================================================ */
 function GraphServicesGate({ children }: { children: React.ReactNode }) {
   const { ready, account } = useAuth();

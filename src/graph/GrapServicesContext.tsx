@@ -1,77 +1,100 @@
+// src/graph/GrapServicesContext.tsx
+
+
 import * as React from "react";
-// import { useAuth } from "../auth/authContext";
 import { GraphRest } from "./GraphRest";
 import { useAuth } from "../auth/authContext";
 
-/* ================== Tipos de config ================== */
-export type SiteConfig = {
-  hostname: string;
-  sitePath: string; // Debe iniciar con '/'
-};
+// Servicios
+import { UsuariosGDService } from "../Services/UsuariosGD.service";
+import { AreasService } from "../Services/Areas.service";
+import { CompaniasService } from "../Services/Companias.service";
+
+/* ================== Tipos de configuración ================== */
+export type SiteConfig = { hostname: string; sitePath: string };
 
 export type UnifiedConfig = {
-  hd: SiteConfig;    // sitio principal (HD)
-  test: SiteConfig;  // sitio de pruebas (Paz y salvos)
-  lists: Record<string, string>; // Listas dinámicas
+  gd: SiteConfig;
+  test: SiteConfig;
+  lists: {
+    UsuariosGD: string;
+    AreasGD: string;
+    CompaniasGD: string;
+    [key: string]: string;
+  };
 };
 
 /* ================== Tipos del contexto ================== */
 export type GraphServices = {
   graph: GraphRest;
-  // Aquí irían los servicios (ejemplo: Sociedades, Proveedores, etc.)
+  UsuariosGD: UsuariosGDService;
+  Areas: AreasService;
+  Companias: CompaniasService;
 };
 
-/* ================== Contexto ================== */
+/* 
+  ⚠️ IMPORTANTE (HMR / React Refresh):
+  - No exportes este símbolo con PascalCase.
+  - El plugin de React Refresh asume que cualquier export con nombre en mayúscula es un componente.
+  - Si en algún barrel haces `export { GraphServicesContext }`, causará el warning.
+  ✅ Por eso lo dejamos como 'GraphServicesContext' (minúscula) y NO lo exportamos.
+*/
 const GraphServicesContext = React.createContext<GraphServices | null>(null);
 
-/* ================== Default config ================== */
+
+/* ================== Config por defecto ================== */
 const DEFAULT_CONFIG: UnifiedConfig = {
-  hd: {
+  gd: {
     hostname: "estudiodemoda.sharepoint.com",
-    sitePath: "/sites/TransformacionDigital/IN/HD",    // se cambiara por el link que cree cesar
+    sitePath: "/sites/TransformacionDigital/IN/GD",
   },
   test: {
     hostname: "estudiodemoda.sharepoint.com",
-    sitePath: "/sites/TransformacionDigital/IN/Test",     // se cambiara por el link que cree cesar
+    sitePath: "/sites/TransformacionDigital/IN/Test",
   },
-  lists: {},
+  lists: {
+    UsuariosGD: "UsuariosGD",
+    AreasGD: "AreasGD",
+    CompaniasGD: "CompaniasGD",
+  },
 };
 
 /* ================== Provider ================== */
-type ProviderProps = {
-  children: React.ReactNode;
-  config?: Partial<UnifiedConfig>;
-};
+type ProviderProps = { children: React.ReactNode; config?: Partial<UnifiedConfig> };
 
 export const GraphServicesProvider: React.FC<ProviderProps> = ({ children, config }) => {
   const { getToken } = useAuth();
 
-  // Mergeo de config
+  // Mezclar config base + overrides
   const cfg: UnifiedConfig = React.useMemo(() => {
     const base = DEFAULT_CONFIG;
-    const normPath = (p: string) => (p.startsWith("/") ? p : `/${p}`);
+    const norm = (p: string) => (p.startsWith("/") ? p : `/${p}`);
 
-    const hd: SiteConfig = {
-      hostname: config?.hd?.hostname ?? base.hd.hostname,
-      sitePath: normPath(config?.hd?.sitePath ?? base.hd.sitePath),
+    const gd: SiteConfig = {
+      hostname: config?.gd?.hostname ?? base.gd.hostname,
+      sitePath: norm(config?.gd?.sitePath ?? base.gd.sitePath),
     };
-
     const test: SiteConfig = {
       hostname: config?.test?.hostname ?? base.test.hostname,
-      sitePath: normPath(config?.test?.sitePath ?? base.test.sitePath),
+      sitePath: norm(config?.test?.sitePath ?? base.test.sitePath),
     };
-
     const lists = { ...base.lists, ...(config?.lists ?? {}) };
 
-    return { hd, test, lists };
+    return { gd, test, lists };
   }, [config]);
 
   // Cliente Graph
   const graph = React.useMemo(() => new GraphRest(getToken), [getToken]);
 
-  // Instanciar servicios (por ahora solo el cliente Graph)
+  // Instanciar servicios
   const services = React.useMemo<GraphServices>(() => {
-    return { graph };
+    const { lists, test } = cfg;
+
+    const UsuariosGD = new UsuariosGDService(graph, test.hostname, test.sitePath, lists.UsuariosGD);
+    const Areas      = new AreasService(graph, test.hostname, test.sitePath, lists.AreasGD);
+    const Companias  = new CompaniasService(graph, test.hostname, test.sitePath, lists.CompaniasGD);
+
+    return { graph, UsuariosGD, Areas, Companias };
   }, [graph, cfg]);
 
   return (

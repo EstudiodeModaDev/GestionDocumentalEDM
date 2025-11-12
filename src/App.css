@@ -159,5 +159,28 @@ html, body, #root {
   padding: 1.5rem 2rem;
 }
 
+/*  estilos de ver quien esta registrado
 
+/* === Header: información de usuario y botón === */
+.userCluster {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
 
+.userInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.userName {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.userRole {
+  font-size: 0.85rem;
+  color: #64748b;
+}
