@@ -1,192 +1,340 @@
 // src/components/Areas/AreasPanel.tsx
 import * as React from "react";
-import type { AreaGD } from "../../Models/Area";
 import "./AreasPanel.css";
+
+import type { AreaGD } from "../../Models/Area";
+// import type { CompaniaGD } from "../../Models/CompaniaGD";
+import type { UsuarioGD, RolUsuario } from "../../Models/UsuarioGD";
+
 import { useGraphServices } from "../../graph/GrapServicesContext";
+import { useAuth } from "../../auth/authContext";
+import { useUserRoleFromSP } from "../../Funcionalidades/useUserRoleFromSP";
 
 /**
- * Componente principal de gestión de Áreas
+ * 🧩 AreasPanel (versión por ÁREA seleccionada)
  * ------------------------------------------------------------
- * - Muestra las áreas registradas desde SharePoint
- * - Permite crear nuevas áreas asociadas a una compañía existente
- * - Crea automáticamente la carpeta dentro de:
- *   "Gestión Documental/{Compañía}/{Área}"
+ * Esta vista ya NO es un listado general de áreas.
+ * Ahora representa **una sola área** seleccionada desde el menú lateral:
+ *
+ *   Compañía → Área
+ *
+ * Recibe por props:
+ *   - areaId:      Id interno del área en la lista AreasGD
+ *   - areaName:    Nombre del área (Title)
+ *   - companiaName: Nombre de la compañía a la que pertenece
+ *
+ * Muestra:
+ *   - Datos básicos del área
+ *   - Responsable actual (correo almacenado en AreasGD.ResponsableId)
+ *   - Administrador de compañía (AreasGD.AdministradorId)
+ *   - Cantidad de usuarios de área (desde UsuariosGD)
+ *
+ * Y deja listos dos botones para:
+ *   - Gestionar Responsable del área
+ *   - Gestionar Usuarios del área
+ *
+ * Más adelante, en esta misma pantalla se montará:
+ *   - Listado de documentos del área
+ *   - Carga/edición/eliminación de documentos
+ *   - Flujos de aprobación, trazabilidad, búsquedas full-text, etc.
  */
-export default function AreasPanel() {
-  const { Areas, Companias } = useGraphServices();
 
-  // Estado de datos
-  const [areas, setAreas] = React.useState<AreaGD[]>([]);
-  const [companias, setCompanias] = React.useState<any[]>([]);
+type AreasPanelProps = {
+  areaId: string;
+  areaName: string;
+  companiaName: string;
+};
 
-  // Estado de carga y errores
+export default function AreasPanel({ areaId, areaName, companiaName }: AreasPanelProps) {
+  const { Areas, UsuariosGD } = useGraphServices();
+  const { account } = useAuth();
+
+  // 📧 Correo del usuario autenticado (para saber su rol)
+  const userMail = account?.username ?? "";
+
+  // 🔐 Rol del usuario (AdministradorGeneral, AdminCom, ResponsableArea, UsuarioArea, SinAcceso)
+  const {
+    role,
+    loading: loadingRole,
+    error: roleError,
+  } = useUserRoleFromSP(userMail);
+
+  // 📂 Área actual (detalle desde AreasGD)
+  const [area, setArea] = React.useState<AreaGD | null>(null);
+
+  // 👥 Usuarios registrados como "UsuarioArea" para esta compañía + área
+  const [usuariosArea, setUsuariosArea] = React.useState<UsuarioGD[]>([]);
+
+  // Estados generales de carga / error
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Estado de selección del usuario
-  const [selectedCompania, setSelectedCompania] = React.useState<string>("");
-
   /* ============================================================
-     🔹 Cargar compañías para el selector dinámico
-     ============================================================ */
+     🔹 Cargar datos del área + usuarios del área
+     ------------------------------------------------------------
+     - Busca el área en AreasGD por Id (y como backup, por nombre)
+     - Carga todos los usuarios desde UsuariosGD y filtra:
+          Rol === "UsuarioArea"
+          CompaniaID === companiaName
+          AreaID === areaName
+  ============================================================ */
   React.useEffect(() => {
+    if (loadingRole) return; // Esperamos a conocer el rol del usuario
+
+    let cancel = false;
+
     (async () => {
       try {
         setLoading(true);
-        const listaCompanias = await Companias.getAll();
-        setCompanias(listaCompanias);
+
+        // 1️⃣ Cargar todas las áreas y localizar la actual
+        const allAreas = await Areas.getAll();
+        let currentArea =
+          allAreas.find((a) => String(a.Id) === String(areaId)) ??
+          allAreas.find(
+            (a) =>
+              a.Title === areaName &&
+              a.NombreCompania === companiaName
+          );
+
+        if (!cancel) {
+          setArea(currentArea ?? null);
+        }
+
+        // 2️⃣ Cargar todos los usuarios y filtrar los de esta área
+        const allUsers = await UsuariosGD.getAll();
+        const usersOfArea = allUsers.filter(
+          (u) =>
+            u.Rol === "UsuarioArea" &&
+            u.CompaniaID === companiaName &&
+            u.AreaID === areaName
+        );
+
+        if (!cancel) {
+          setUsuariosArea(usersOfArea);
+        }
       } catch (err) {
-        console.error("❌ Error al obtener las compañías:", err);
+        console.error("❌ Error al cargar datos del área:", err);
+        if (!cancel) setError("No se pudo cargar la información del área.");
       } finally {
-        setLoading(false);
+        if (!cancel) setLoading(false);
       }
     })();
-  }, [Companias]);
+
+    return () => {
+      cancel = true;
+    };
+  }, [Areas, UsuariosGD, areaId, areaName, companiaName, loadingRole]);
 
   /* ============================================================
-     🔹 Cargar todas las áreas al montar el componente
-     ============================================================ */
-  React.useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const data = await Areas.getAll();
-        setAreas(data);
-      } catch (err: any) {
-        console.error("Error al obtener las áreas:", err);
-        setError("No se pudieron cargar las áreas registradas.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [Areas]);
+     🔹 Lógica de permisos para acciones
+     ------------------------------------------------------------
+     - canManageResponsable:
+         • AdminGeneral
+         • AdministradorCom
+     - canManageUsuarios:
+         • AdminGeneral
+         • AdministradorCom
+         • ResponsableArea
+  ============================================================ */
+  const canManageResponsable: boolean =
+    role === "AdministradorGeneral" || role === "AdministradorCom";
+
+  const canManageUsuarios: boolean =
+    role === "AdministradorGeneral" ||
+    role === "AdministradorCom" ||
+    role === "ResponsableArea";
 
   /* ============================================================
-     🔹 Crear nueva área
-     ============================================================ */
-  const handleNuevaArea = async () => {
-    const nombre = prompt("Ingresa el nombre del área nueva:");
-    const administrador = prompt("Correo del administrador del área:");
+     🔹 Handlers de botones (por ahora solo placeholders)
+     ------------------------------------------------------------
+     Más adelante aquí:
+       - Abriremos modales para buscar usuarios en M365
+       - Actualizaremos AreasGD.ResponsableId
+       - Crearemos / eliminaremos usuarios en UsuariosGD
+  ============================================================ */
 
-    // Validaciones previas
-    if (!nombre || !administrador)
-      return alert("Debes ingresar nombre y administrador.");
-    if (!selectedCompania)
-      return alert("Debes seleccionar una compañía antes de crear el área.");
-
-    try {
-      setLoading(true);
-
-      // Armar el objeto del área
-      const nuevaArea: Omit<AreaGD, "Id"> = {
-        Title: nombre.trim(),
-        AdministradorId: administrador.trim(),
-        FechaCreacion: new Date().toISOString(),
-        Activa: true,
-        NombreCompania: selectedCompania.trim(),
-      };
-
-      // Guardar en SharePoint y crear carpeta en la compañía
-      const creada = await Areas.create(nuevaArea);
-
-      // Agregar al estado local
-      setAreas((prev) => [...prev, creada]);
-      alert(
-        `Área "${creada.Title}" creada correctamente dentro de ${selectedCompania}.`
-      );
-    } catch (err: any) {
-      console.error("Error al crear el área:", err);
-      alert("Ocurrió un error al crear el área. Revisa la consola.");
-    } finally {
-      setLoading(false);
+  const handleGestionarResponsable = () => {
+    if (!canManageResponsable) {
+      alert("No tienes permisos para gestionar el responsable del área.");
+      return;
     }
+
+    // TODO: reemplazar por apertura de modal "Gestionar Responsable"
+    alert(
+      "Aquí se abrirá el modal para gestionar el Responsable del área (WIP)."
+    );
+  };
+
+  const handleGestionarUsuarios = () => {
+    if (!canManageUsuarios) {
+      alert("No tienes permisos para gestionar los usuarios del área.");
+      return;
+    }
+
+    // TODO: reemplazar por apertura de modal "Gestionar Usuarios del Área"
+    alert(
+      "Aquí se abrirá el modal para gestionar los Usuarios de esta área (WIP)."
+    );
   };
 
   /* ============================================================
-     🔹 Renderizado
-     ============================================================ */
+     🔹 Casos de carga / sin acceso / sin datos
+  ============================================================ */
+
+  if (loadingRole || (loading && !area)) {
+    return (
+      <div className="areas-container">
+        <h2>Área: {areaName}</h2>
+        <p>Cargando información del área...</p>
+      </div>
+    );
+  }
+
+  // Si el usuario no tiene ningún rol que haga sentido (SinAcceso)
+  if (!loadingRole) {
+    const rolesPermitidos: RolUsuario[] = [
+      "AdministradorGeneral",
+      "AdministradorCom",
+      "ResponsableArea",
+      "UsuarioArea",
+    ];
+
+    if (!rolesPermitidos.includes(role)) {
+      return (
+        <div className="areas-container">
+          <h2>Área: {areaName}</h2>
+          <p>No tienes permisos para acceder a esta área.</p>
+        </div>
+      );
+    }
+  }
+
+  // Si no se encontró el área en la lista
+  if (!area) {
+    return (
+      <div className="areas-container">
+        <h2>Área seleccionada</h2>
+        <p>
+          No se encontró información para el área{" "}
+          <strong>{areaName}</strong> en la compañía{" "}
+          <strong>{companiaName}</strong>.
+        </p>
+      </div>
+    );
+  }
+
+  /* ============================================================
+     🔹 Render principal (vista por área)
+  ============================================================ */
+
+  const fechaCreacionLegible = area.FechaCreacion
+    ? new Date(area.FechaCreacion).toLocaleDateString()
+    : "—";
+
+  const estadoTexto = area.Activa ? "Activa" : "Inactiva";
+
   return (
     <div className="areas-container">
-      <header className="areas-header">
+      {/* Encabezado principal del área */}
+      <header className="area-header">
         <div>
-          <h2>Áreas registradas</h2>
+          <h2>Área: {areaName}</h2>
           <p style={{ fontSize: "0.9rem", color: "#666" }}>
-            Crea áreas dentro de las carpetas de cada compañía.
+            Compañía: <strong>{companiaName}</strong>
           </p>
+
+          {roleError && (
+            <p style={{ color: "red", fontSize: "0.85rem" }}>{roleError}</p>
+          )}
+          {error && (
+            <p style={{ color: "red", fontSize: "0.85rem" }}>{error}</p>
+          )}
         </div>
 
-        {/* 🔹 Selector de compañía */}
-        <div className="compania-selector">
-          <label htmlFor="companiaSelect">Compañía:</label>
-          <select
-            id="companiaSelect"
-            value={selectedCompania}
-            onChange={(e) => setSelectedCompania(e.target.value)}
-          >
-            <option value="">-- Selecciona una compañía --</option>
-            {companias.map((c) => (
-              <option key={c.Id} value={c.Title}>
-                {c.Title}
-              </option>
-            ))}
-          </select>
-
-          {/* 🔘 Botón para crear área */}
+        {/* Botones de acción sobre esta área */}
+        <div className="area-actions">
           <button
-            className="btn-nueva-area"
-            onClick={handleNuevaArea}
-            disabled={loading}
+            className="btn-gestion-responsable"
+            onClick={handleGestionarResponsable}
+            disabled={!canManageResponsable}
+            title={
+              canManageResponsable
+                ? "Gestionar responsable del área"
+                : "No tienes permisos para gestionar el responsable"
+            }
           >
-            {loading ? "Procesando..." : "+ Nueva Área"}
+            Gestionar Responsable
+          </button>
+
+          <button
+            className="btn-gestion-usuarios"
+            onClick={handleGestionarUsuarios}
+            disabled={!canManageUsuarios}
+            title={
+              canManageUsuarios
+                ? "Gestionar usuarios del área"
+                : "No tienes permisos para gestionar usuarios del área"
+            }
+          >
+            Gestionar Usuarios
           </button>
         </div>
       </header>
 
-      {/* 🔹 Mostrar errores o tabla */}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {/* Resumen de la configuración del área */}
+      <section className="area-summary">
+        <h3>Resumen del área</h3>
 
-      {loading && areas.length === 0 ? (
-        <p>Cargando áreas...</p>
-      ) : (
-        <table className="areas-table">
-          <thead>
-            <tr>
-              <th>Área</th>
-              <th>Compañía</th>
-              <th>Administrador</th>
-              <th>Fecha creación</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {areas.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ textAlign: "center", padding: "1rem" }}>
-                  No hay áreas registradas.
-                </td>
-              </tr>
-            ) : (
-              areas.map((a) => (
-                <tr key={a.Id}>
-                  <td>{a.Title}</td>
-                  <td>{a.NombreCompania}</td>
-                  <td>{a.AdministradorId || "—"}</td>
-                  <td>
-                    {a.FechaCreacion
-                      ? new Date(a.FechaCreacion).toLocaleDateString()
-                      : "—"}
-                  </td>
-                  <td>
-                    <span className={`estado ${a.Activa ? "activo" : "inactivo"}`}>
-                      {a.Activa ? "Activa" : "Inactiva"}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      )}
+        <div className="area-summary-grid">
+          <div>
+            <span className="summary-label">Responsable actual:</span>
+            <span className="summary-value">
+              {area.ResponsableId || "— (sin responsable asignado)"}
+            </span>
+          </div>
+
+          <div>
+            <span className="summary-label">Administrador de compañía:</span>
+            <span className="summary-value">
+              {area.AdministradorId || "—"}
+            </span>
+          </div>
+
+          <div>
+            <span className="summary-label">Usuarios del área:</span>
+            <span className="summary-value">
+              {usuariosArea.length} usuario
+              {usuariosArea.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <div>
+            <span className="summary-label">Fecha de creación:</span>
+            <span className="summary-value">{fechaCreacionLegible}</span>
+          </div>
+
+          <div>
+            <span className="summary-label">Estado:</span>
+            <span
+              className={`summary-badge ${
+                area.Activa ? "estado-activo" : "estado-inactivo"
+              }`}
+            >
+              {estadoTexto}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Placeholder para documentos del área (futuro) */}
+      <section className="area-docs-placeholder">
+        <h3>Documentos del área</h3>
+        <p style={{ fontSize: "0.9rem", color: "#666" }}>
+          Aquí, más adelante, se listarán los documentos de esta área
+          (subcarpetas, versiones, flujos de aprobación, búsquedas, etc.).
+        </p>
+      </section>
     </div>
   );
 }

@@ -162,18 +162,11 @@ html, body, #root {
 /*  estilos de ver quien esta registrado
 
 /* === Header: información de usuario y botón === */
-.userCluster {
+/* .userCluster {
   display: flex;
   align-items: center;
   gap: 1rem;
-}
-
-.userInfo {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-}
+} */
 
 .userName {
   font-weight: 600;
@@ -183,4 +176,90 @@ html, body, #root {
 .userRole {
   font-size: 0.85rem;
   color: #64748b;
+  white-space: nowrap;  /* ⭐ Evita que se parta a 2 líneas */
 }
+
+/* ===== Árbol de menú ===== */
+
+.tree-arrow {
+  width: 12px;
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 0.8rem;
+}
+
+.tree-arrow-placeholder {
+  width: 12px;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.subtree {
+  padding-left: 1.2rem;
+  margin-top: 0.25rem;
+}
+
+.subsubtree {
+  padding-left: 1.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Ajustes visuales */
+.sideItem.sub {
+  padding-left: 1.2rem !important;
+}
+
+.sideItem.sub2 {
+  padding-left: 2rem !important;
+}
+
+/* ============================================================
+   🎨 Selector de roles (solo visible para administradores)
+============================================================ */
+
+/* ================================================
+   Bloque principal: nombre y rol
+================================================ */
+/* Contenedor general: 3 elementos en fila
+   [UserLeft]   [UserRight]   [Logout] */
+.userCluster {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+/* === COLUMNA IZQUIERDA === */
+.userInfoLeft {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start; 
+  white-space: nowrap;
+}
+
+/* === COLUMNA DERECHA === */
+.userInfoRight {
+  display: flex;
+  flex-direction: column;    /* Texto arriba, selector abajo */
+  justify-content: center;
+  align-items: center;     /* Derecha */
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.userLabel {
+  font-size: 0.9rem;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+/* Selector */
+.roleSelector {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #b9c4d4;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+

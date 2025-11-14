@@ -6,4 +6,5 @@ export interface AreaGD {
   FechaCreacion?: string;         // Fecha de creación
   Activa?: boolean;
   NombreCompania?: string;
+  ResponsableId?: string; 
 }

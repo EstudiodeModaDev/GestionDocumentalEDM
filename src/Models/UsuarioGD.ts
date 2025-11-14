@@ -1,11 +1,11 @@
 // src/Models/UsuarioGD.ts
-export type RolUsuario = "AdministradorGeneral" | "AdministradorArea" | "ResponsableSubarea" | "UsuarioSubarea";
+export type RolUsuario = "AdministradorGeneral" | "AdministradorCom" | "ResponsableArea" | "UsuarioArea"| "SinAcceso";   // 👈 NUEVO ROL
 
 export interface UsuarioGD {
   ID?: string;
   Title: string;
   Correo: string;
   Rol: RolUsuario;
-  AreaId?: string;
-  SubareaId?: string;
+  CompaniaID?: string;
+  AreaID?: string;
 }
