@@ -1,0 +1,277 @@
+/* ============================================================
+   🌙 BACKDROP — igual al modal anterior
+============================================================ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  backdrop-filter: blur(2px);
+}
+
+/* ============================================================
+   🧩 CARD DEL MODAL — tamaño y estilo base
+============================================================ */
+.modal-card.modal-nueva-compania {
+  background: white;
+  width: 680px;
+  max-width: 95%;
+  padding: 2rem 1.5rem 2rem;
+  border-radius: 14px;
+  box-shadow: 0 8px 35px rgba(0,0,0,0.22);
+  animation: fadeIn 0.25s ease;
+  font-family: "Inter", system-ui, sans-serif;
+
+  display: flex;
+  flex-direction: column;
+  height: 580px;
+}
+
+/* ============================================================
+   Header
+============================================================ */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.modal-header h2 {
+  margin-top: -6px;
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: 0.15s;
+}
+
+.close-btn:hover {
+  opacity: 1;
+}
+
+/* ============================================================
+   BODY DEL MODAL
+============================================================ */
+.modal-body {
+  flex: auto;
+  overflow-y: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal-body > *:first-child {
+  margin-top: 0 !important;
+}
+
+.modal-body {
+  padding-top: 0.9rem !important;
+  margin-top: 0 !important;
+}
+
+.modal-card.modal-nueva-compania {
+  padding-top: 0.6rem !important;
+}
+
+.modal-label {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #334155;
+}
+
+.modal-input,
+.autocomplete-input {
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 1rem;
+  background: #f8fafc;
+  transition: 0.2s ease;
+}
+
+.modal-input:focus,
+.autocomplete-input:focus {
+  border-color: #2563eb;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.25);
+  outline: none;
+}
+
+/* ============================================================
+   🔍 AUTOCOMPLETE (nuevo, mejorado y 100% integrado)
+============================================================ */
+
+.autocomplete-container {
+  position: relative;
+  width: 100%;
+}
+
+/* Dropdown */
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  z-index: 5000;
+}
+
+/* Item */
+.autocomplete-item {
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+  transition: 0.15s;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.autocomplete-item:hover {
+  background: #f1f5f9;
+}
+
+.autocomplete-item.selected {
+  background: #e8f0ff;
+}
+
+.autocomplete-item-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.autocomplete-item-email {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+/* ============================================================
+   ⭐ TARJETA DEL USUARIO SELECCIONADO
+============================================================ */
+.selected-admin-chip {
+  margin-top: 0.4rem;
+  padding: 0.75rem 0.9rem;
+
+  background: #f1f5f9;
+  border: 1px solid #dbe1e9;
+  border-radius: 10px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.selected-admin-texts {
+  display: flex;
+  flex-direction: column;
+}
+
+.selected-admin-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.selected-admin-email {
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.selected-admin-remove {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 6px;
+  transition: 0.2s ease;
+}
+
+.selected-admin-remove:hover {
+  background: rgba(220, 38, 38, 0.1);
+}
+
+/* ============================================================
+   Errores
+============================================================ */
+.modal-error {
+  margin-top: 0.5rem;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+.modal-footer {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.btn-cancelar {
+  background: #e2e8f0;
+  color: #0f172a;
+  padding: 0.7rem 1.4rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btn-cancelar:hover {
+  background: #cbd5e1;
+}
+
+.btn-crear {
+  background: #2563eb;
+  color: white;
+  padding: 0.7rem 1.4rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btn-crear:hover {
+  background: #1d4ed8;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   Animación
+============================================================ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

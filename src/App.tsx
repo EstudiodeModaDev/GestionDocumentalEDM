@@ -1,27 +1,25 @@
 // ============================================================
 // src/App.tsx
 // Gestión Documental EDM - App principal con menú dinámico
-// Con soporte para:
-//  - Selector de rol temporal (Cambio Rol ⚙️)
-//  - Filtro real por roles usando NAV_BASE
-//  - Filtro dinámico de compañías/áreas por rol
-//  - Envío de props a AreasPanel (areaId, areaName, companiaName)
+// Con NavContext para navegación global y expansión del menú.
 // ============================================================
 
 import * as React from "react";
 import "./App.css";
 
-// === Providers ===
+// Providers
 import { AuthProvider, useAuth } from "./auth/authContext";
 import { GraphServicesProvider, useGraphServices } from "./graph/GrapServicesContext";
 import { useUserRoleFromSP } from "./Funcionalidades/useUserRoleFromSP";
+import { NavProvider, useNav } from "./components/Context/NavContext";
 
-// === Componentes base ===
+// Componentes base
 import WelcomeEDM from "./components/Welcome/WelcomeEDM";
 import AreasPanel from "./components/Areas/AreasPanel";
 import CompaniasPanel from "./components/Companias/CompaniasPanel";
+import VerAreas from "./components/Companias/VerAreas";
 
-// === Iconos ===
+// Iconos
 import homeIcon from "./assets/home.svg";
 import folderIcon from "./assets/folder.svg";
 import fileIcon from "./assets/file.svg";
@@ -57,13 +55,14 @@ const NAV_BASE: MenuItem[] = [
     id: "companias",
     label: "Compañías",
     icon: <img src={companyIcon} className="sb-icon" alt="" />,
+    to: <CompaniasPanel />,
     roles: ["AdministradorGeneral", "AdministradorCom", "ResponsableArea", "UsuarioArea"],
     children: [],
   },
 ];
 
 /* ============================================================
-   🔹 Buscar nodo por ID
+   🔹 Buscar nodo por ID en el árbol
 ============================================================ */
 function findById(nodes: readonly MenuItem[], id: string): MenuItem | undefined {
   for (const n of nodes) {
@@ -77,7 +76,7 @@ function findById(nodes: readonly MenuItem[], id: string): MenuItem | undefined 
 }
 
 /* ============================================================
-   🔹 RBAC: Filtrar menú por rol
+   🔹 RBAC: Filtrar menú según rol
 ============================================================ */
 function filterMenuByRole(items: MenuItem[], role: Role): MenuItem[] {
   return items
@@ -89,7 +88,7 @@ function filterMenuByRole(items: MenuItem[], role: Role): MenuItem[] {
 }
 
 /* ============================================================
-   🔹 Header con Cambio Rol (⚙️)
+   🔹 HeaderBar
 ============================================================ */
 function HeaderBar({
   onPrimaryAction,
@@ -106,20 +105,16 @@ function HeaderBar({
     <header className="headerRow">
       <div className="header-inner">
 
-        {/* Título */}
         <div className="brand">
           <h1>Gestión Documental EDM</h1>
         </div>
 
         <div className="userCluster">
-
-          {/* === COLUMNA IZQUIERDA === */}
           <div className="userInfoLeft">
             <span className="userName">{userName}</span>
             <span className="userRole">{userRole}</span>
           </div>
 
-          {/* === Cambio Rol ⚙️ === */}
           {onChangeRole && (
             <div className="userInfoRight">
               <span className="userLabel">Cambio Rol ⚙️</span>
@@ -127,18 +122,17 @@ function HeaderBar({
               <select
                 className="roleSelector"
                 value={userRole}
-                onChange={(e) => onChangeRole(e.target.value)}
+                onChange={(e) => onChangeRole(e.target.value as Role)}
               >
                 <option value="AdministradorGeneral">Administrador General</option>
-                <option value="AdministradorCom">Admin de Compañia</option>
-                <option value="ResponsableArea">Responsable de Área</option>
-                <option value="UsuarioArea">Usuario de Área</option>
+                <option value="AdministradorCom">Administrador de Compañía</option>
+                <option value="ResponsableArea">Responsable Área</option>
+                <option value="UsuarioArea">Usuario Área</option>
                 <option value="SinAcceso">Sin Acceso</option>
               </select>
             </div>
           )}
 
-          {/* Logout */}
           {onPrimaryAction && (
             <button className="btn-logout" onClick={onPrimaryAction.onClick}>
               {onPrimaryAction.label}
@@ -151,13 +145,10 @@ function HeaderBar({
 }
 
 /* ============================================================
-   🔹 Sidebar
+   🔹 Sidebar — versión NavContext
 ============================================================ */
-function Sidebar({ navs, selected, onSelect }: any) {
-  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
-
-  const toggleExpand = (id: string) =>
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+function Sidebar({ navs }: { navs: MenuItem[] }) {
+  const { selected, setSelected, expanded, toggleNode } = useNav();
 
   return (
     <aside className="sidebar">
@@ -168,11 +159,23 @@ function Sidebar({ navs, selected, onSelect }: any) {
 
             return (
               <li key={n.id}>
+                {/* =======================================================
+                    NIVEL 0 — Inicio / Compañías
+                ======================================================= */}
                 <button
                   className={`sideItem ${selected === n.id ? "active" : ""}`}
                   onClick={() => {
-                    if (n.children?.length) toggleExpand(n.id);
-                    else onSelect(n.id);
+                    if (n.children?.length) {
+                      if (n.id === "companias") {
+                        setSelected(n.id);
+                        toggleNode(n.id);
+                      } else {
+                        toggleNode(n.id);
+                        setSelected(n.id);
+                      }
+                    } else {
+                      setSelected(n.id);
+                    }
                   }}
                 >
                   {n.children?.length ? (
@@ -185,23 +188,61 @@ function Sidebar({ navs, selected, onSelect }: any) {
                   <span>{n.label}</span>
                 </button>
 
-                {/* Subniveles */}
-                {n.children?.length && isExpanded && (
+                {/* =======================================================
+                    NIVEL 1 — Compañías → Áreas
+                ======================================================= */}
+                {n.children?.length > 0 && isExpanded && (
                   <ul className="subtree">
-                    {n.children.map((c: any) => (
-                      <li key={c.id}>
-                        <button
-                          className={`sideItem sub ${selected === c.id ? "active" : ""}`}
-                          onClick={() => onSelect(c.id)}
-                        >
-                          {c.icon}
-                          <span>{c.label}</span>
-                        </button>
-                      </li>
-                    ))}
+                    {n.children.map((c: any) => {
+                      const isCompExpanded = expanded[c.id] ?? false;
+
+                      return (
+                        <li key={c.id}>
+                          <button
+                            className={`sideItem sub ${selected === c.id ? "active" : ""}`}
+                            onClick={() => {
+                              if (c.children?.length) {
+                                setSelected(c.id);
+                                toggleNode(c.id);
+                              } else {
+                                setSelected(c.id);
+                              }
+                            }}
+                          >
+                            {c.children?.length ? (
+                              <span className="tree-arrow">{isCompExpanded ? "▾" : "▸"}</span>
+                            ) : (
+                              <span className="tree-arrow-placeholder" />
+                            )}
+
+                            {c.icon}
+                            <span>{c.label}</span>
+                          </button>
+
+                          {/* =======================================================
+                              NIVEL 2 — Áreas
+                          ======================================================= */}
+                          {c.children?.length > 0 && isCompExpanded && (
+                            <ul className="subsubtree">
+                              {c.children.map((a: any) => (
+                                <li key={a.id}>
+                                  <button
+                                    className={`sideItem sub2 ${selected === a.id ? "active" : ""}`}
+                                    onClick={() => setSelected(a.id)}
+                                  >
+                                    <span className="tree-arrow-placeholder" />
+                                    {a.icon}
+                                    <span>{a.label}</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
-
               </li>
             );
           })}
@@ -212,42 +253,65 @@ function Sidebar({ navs, selected, onSelect }: any) {
 }
 
 /* ============================================================
-   🔹 LoggedApp — Construye menú dinámico + envía props a AreasPanel
+   🔹 LoggedApp — construir árbol + contenido
 ============================================================ */
+/* ============================================================
+   LoggedApp — reconstruye el NAV dinámico en tiempo real
+   Escucha:
+   ✔ cambio de rol
+   ✔ cambio de compañía del usuario
+   ✔ cambio de área
+   ✔ loading inicial
+   ✔ refreshFlag (CREAR / EDITAR / ELIMINAR compañía o área)
+============================================================ */
+
 function LoggedApp({ account }: any) {
   const services = useGraphServices();
+  const { selected, refreshFlag } = useNav(); // 👈 EXTRAEMOS refreshFlag
 
   const userMail = account?.username ?? "";
+
+  // Cargamos rol + compañía + área del usuario
   const { role, companiaID, areaID, loading } = useUserRoleFromSP(userMail);
 
+  // Si el usuario está usando overrideRole (modo admin), ese manda
   const effectiveRole: Role = account.overrideRole ?? role;
 
+  // Estado local para el árbol del menú
   const [navTree, setNavTree] = React.useState<MenuItem[]>(NAV_BASE);
-  const [selected, setSelected] = React.useState("home");
 
+  /* ============================================================
+     Efecto: reconstruir el NAV cuando:
+     - cambia el rol
+     - cambia su compañía asignada
+     - cambia su área asignada
+     - termina de cargar useUserRoleFromSP
+     - 💥 CAMBIA refreshFlag (crear/eliminar/editar)
+  ============================================================ */
   React.useEffect(() => {
-    if (loading) return;
+    if (loading) return;        // aún no sabemos su rol
+    if (!effectiveRole) return; // seguridad
 
     (async () => {
+      // Obtener compañías y áreas
       const comps = await services.Companias.getAll();
       const areas = await services.Areas.getAll();
 
-      // ============================
-      // 🔥 FILTRAR COMPAÑÍAS SEGÚN ROL
-      // ============================
+      /* ========================================================
+         1) Filtrar compañías según rol
+      ======================================================== */
       let filteredComps = comps;
 
-      if (
-        effectiveRole === "AdministradorCom" ||
-        effectiveRole === "ResponsableArea" ||
-        effectiveRole === "UsuarioArea"
-      ) {
-        filteredComps = comps.filter((c) => c.Title === companiaID);
+      if (["AdministradorCom", "ResponsableArea", "UsuarioArea"].includes(effectiveRole)) {
+        filteredComps = comps.filter(
+          (c) =>
+            c.Title.trim().toLowerCase() === (companiaID ?? "").trim().toLowerCase()
+        );
       }
 
-      // ============================
-      // 🔥 FILTRAR ÁREAS SEGÚN ROL
-      // ============================
+      /* ========================================================
+         2) Construir árbol dinámico (compañías → áreas)
+      ======================================================== */
       const tree = filteredComps.map((comp) => {
         const compAreas = areas.filter(
           (a) =>
@@ -258,20 +322,21 @@ function LoggedApp({ account }: any) {
         let filteredAreas = compAreas;
 
         if (effectiveRole === "ResponsableArea" || effectiveRole === "UsuarioArea") {
-          filteredAreas = compAreas.filter((a) => a.Id === areaID);
+          filteredAreas = compAreas.filter(
+            (a) =>
+              a.Title.trim().toLowerCase() === (areaID ?? "").trim().toLowerCase()
+          );
         }
 
         return {
-          id: `c-${comp.Id}`,
+          id: `c-${comp.Id}`, // ID único del nodo de compañía
           label: comp.Title,
           icon: <img src={folderIcon} className="sb-icon" />,
-          to: <CompaniasPanel />,
+          to: <VerAreas companiaName={comp.Title} />,
           children: filteredAreas.map((ar) => ({
             id: `a-${ar.Id}`,
             label: ar.Title,
             icon: <img src={fileIcon} className="sb-icon" />,
-
-            // ⭐⭐ ENVÍO DE PROPS — CORREGIDO
             to: (
               <AreasPanel
                 areaId={String(ar.Id)}
@@ -283,25 +348,36 @@ function LoggedApp({ account }: any) {
         };
       });
 
-      // Insertar árbol en NAV_BASE
+      /* ========================================================
+         3) Insertar árbol dinámico dentro del menú base
+      ======================================================== */
       const merged = NAV_BASE.map((item) =>
         item.id === "companias" ? { ...item, children: tree } : item
       );
 
       setNavTree(merged);
     })();
-  }, [effectiveRole, companiaID, areaID, loading]);
 
-  // Menú filtrado por rol
+    /* ========================================================
+       Dependencias:
+       ✔ effectiveRole  → si cambia rol => reconstruir
+       ✔ companiaID     → si le asignan otra compañía
+       ✔ areaID         → si cambia de área
+       ✔ loading        → apenas termina la carga inicial
+       ✔ refreshFlag    → 🔥 cambios en Compañías/Áreas
+    ======================================================== */
+  }, [effectiveRole, companiaID, areaID, loading, refreshFlag]);
+
+  /* ============================================================
+     Renderizado — Sidebar + Página seleccionada
+  ============================================================ */
   const filteredMenu = filterMenuByRole(navTree, effectiveRole);
-
-  // Ítem seleccionado
   const selectedItem = findById(filteredMenu, selected);
   const content = selectedItem?.to ?? <WelcomeEDM />;
 
   return (
     <div className="layout--withSidebar">
-      <Sidebar navs={filteredMenu} selected={selected} onSelect={setSelected} />
+      <Sidebar navs={filteredMenu} />
 
       <main className="content content--withSidebar">
         <div className="page-viewport">{content}</div>
@@ -310,12 +386,12 @@ function LoggedApp({ account }: any) {
   );
 }
 
+
 /* ============================================================
-   🔹 Shell — Control de rol temporal
+   🔹 Shell — autenticación y selección de rol temporal
 ============================================================ */
 function Shell() {
   const { ready, account, signIn, signOut } = useAuth();
-
   const [userRole, setUserRole] = React.useState<Role>("SinAcceso");
 
   if (!ready) return <p>Cargando autenticación...</p>;
@@ -342,7 +418,10 @@ function Shell() {
     if (!loading) setUserRole(role);
   }, [role, loading]);
 
-  const ALLOWED = ["cesanchez@estudiodemoda.com.co", "practicantelisto@estudiodemoda.com.co"];
+  const ALLOWED = [
+    "cesanchez@estudiodemoda.com.co",
+    "practicantelisto@estudiodemoda.com.co",
+  ];
   const canChangeRole = ALLOWED.includes(userMail);
 
   return (
@@ -351,7 +430,7 @@ function Shell() {
         userName={account.name}
         userRole={userRole}
         onPrimaryAction={{ label: "Cerrar sesión", onClick: signOut }}
-        onChangeRole={canChangeRole ? (rol) => setUserRole(rol as Role) : undefined}
+        onChangeRole={canChangeRole ? (r) => setUserRole(r as Role) : undefined}
       />
 
       <LoggedApp account={{ ...account, overrideRole: userRole }} />
@@ -360,13 +439,15 @@ function Shell() {
 }
 
 /* ============================================================
-   🔹 App Root
+   🔹 App Root — incluye NavProvider
 ============================================================ */
 export default function App() {
   return (
     <AuthProvider>
       <GraphServicesGate>
-        <Shell />
+        <NavProvider>
+          <Shell />
+        </NavProvider>
       </GraphServicesGate>
     </AuthProvider>
   );

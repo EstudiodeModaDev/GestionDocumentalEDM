@@ -2,15 +2,21 @@
 // Servicio: BuscarUsu.service.ts
 // ------------------------------------------------------------
 // Búsqueda de usuarios en Azure AD mediante Microsoft Graph.
-// Devuelve solo: nombre + correo
+//
+// NOTA IMPORTANTE:
+//  ✔ NO usamos $search → requiere permisos que NO tienes
+//  ✔ Usamos startswith(displayName/mail) → funciona con:
+//      - User.Read
+//      - User.ReadBasic.All
+//
+// Integración con helpers globales:
+//  - esc()                      → limpiar texto OData
+//  - buildStartsWithQuery()     → construir URL de búsqueda
+//  - toBasicUser()              → convertir usuario Graph → UsuarioBasic
 // ============================================================
 
 import type { GraphRest } from "../graph/GraphRest";
-
-export interface UsuarioBasic {
-  nombre: string;
-  correo: string;
-}
+import { buildStartsWithQuery, esc, toBasicUser, type UsuarioBasic } from "../utils/Commons";
 
 export class BuscarUsuService {
   private graph: GraphRest;
@@ -20,81 +26,41 @@ export class BuscarUsuService {
   }
 
   /* ============================================================
-     🛡 Escapar texto de búsqueda
-     Evita errores con comillas, backslashes, etc.
-  ============================================================ */
-  private escapeSearch(text: string) {
-    return text
-      .replace(/\\/g, "\\\\")
-      .replace(/"/g, '\\"')
-      .replace(/'/g, "\\'");
-  }
-
-  /* ============================================================
-     🔎 Buscar usuarios por Azure AD
-     Estrategia:
-       1) Intentar /users?$search=   (requiere permiso + ConsistencyLevel)
-       2) Si falla → usar /me/people (más flexible pero menos completo)
+     🔎 Buscar usuarios por nombre o correo
   ============================================================ */
   async buscar(texto: string): Promise<UsuarioBasic[]> {
     if (!texto.trim()) return [];
 
-    const q = this.escapeSearch(texto.trim());
+    const q = esc(texto.trim());
 
-    // ============================================================
-    // 1️⃣ Intento principal → /users?$search=
-    // ============================================================
     try {
-      const res = await this.graph.get<any>(
-        `/users?$search="${q}"&$select=displayName,mail`,
-        {
-          headers: {
-            "ConsistencyLevel": "eventual"
-          }
-        }
+      // ============================================================
+      // 🏗 Construir URL usando helper → limpio y reutilizable
+      // ============================================================
+      const url = buildStartsWithQuery(
+        "/users",
+        "displayName",
+        "mail",
+        q,
+        "displayName,mail"
       );
 
+      // ============================================================
+      // 📡 Petición a Microsoft Graph
+      // ============================================================
+      const res = await this.graph.get<any>(url);
       const lista = res?.value ?? [];
 
-      const mapped = lista
-        .filter((u: any) => u.mail)
-        .map((u: any) => ({
-          nombre: u.displayName ?? "",
-          correo: u.mail ?? ""
-        }));
+      // ============================================================
+      // 🔄 Convertir usando helper común
+      // ============================================================
+     return lista
+      .map((u: any) => toBasicUser(u))
+      .filter((u: UsuarioBasic | null): u is UsuarioBasic => u !== null);
 
-      if (mapped.length > 0) return mapped;
-
-      // Si no se encontraron coincidencias → continuar al plan B
-    } catch (err) {
-      console.warn("⚠️ /users?$search falló, intentando /me/people…", err);
-    }
-
-    // ============================================================
-    // 2️⃣ Fallback → /me/people
-    //     (Muy buen autocompletado, ideal para buscar nombres)
-    // ============================================================
-    try {
-      const res = await this.graph.get<any>(
-        `/me/people?$search="${q}"&$select=displayName,mail`,
-        {
-          headers: {
-            "ConsistencyLevel": "eventual"
-          }
-        }
-      );
-
-      const lista = res?.value ?? [];
-
-      return lista
-        .filter((u: any) => u.mail)
-        .map((u: any) => ({
-          nombre: u.displayName ?? "",
-          correo: u.mail ?? ""
-        }));
 
     } catch (err) {
-      console.error("❌ Error en /me/people:", err);
+      console.error("❌ Error al buscar usuarios en Azure AD:", err);
       return [];
     }
   }

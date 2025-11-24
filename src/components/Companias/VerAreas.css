@@ -1,0 +1,164 @@
+/* ============================================================
+   🎨 Estilos profesionales para VerAreas
+   Consistencia con CompaniasPanel (dashboard corporativo)
+============================================================ */
+
+/* Layout general */
+.ver-areas-container {
+  padding: 2rem 2.5rem;
+  font-family: "Inter", system-ui, sans-serif;
+  color: #0f172a; /* Slate-900 */
+}
+
+/* ============================================================
+   Header
+============================================================ */
+.ver-areas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.8rem;
+}
+
+.ver-areas-header h2 {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.ver-areas-subtitle {
+  font-size: 0.9rem;
+  color: #64748b; /* Slate-500 */
+  margin-top: -4px;
+}
+
+/* ============================================================
+   Botón Nueva Área
+============================================================ */
+.btn-nueva-area {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 0.55rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+  transition: 0.25s ease;
+}
+
+.btn-nueva-area:hover {
+  background: #1e40af;
+  box-shadow: 0 3px 10px rgba(30, 64, 175, 0.35);
+}
+
+.btn-nueva-area:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   Lista de Áreas
+============================================================ */
+
+/* Mensaje vacío */
+.ver-areas-empty {
+  padding: 1rem;
+  font-size: 0.95rem;
+  color: #475569; /* Slate-600 */
+  text-align: center;
+}
+
+/* Lista */
+.ver-areas-lista {
+  margin-top: 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+/* Fila principal */
+.ver-areas-item {
+  background: white;
+  width: 100%;
+  padding: 0.9rem 1.1rem;
+  border-radius: 10px;
+  margin-bottom: 0.7rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  transition: 0.25s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ver-areas-item:hover {
+  background: #f8fafc;
+  transform: scale(1.01);
+}
+
+/* ============================================================
+   Botón del área (nombre)
+============================================================ */
+.ver-area-item {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: #0f172a;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ver-area-item:hover {
+  opacity: 0.85;
+}
+
+.area-icon {
+  opacity: 0.6;
+  font-size: 0.9rem;
+}
+
+/* ============================================================
+   Acciones (Editar, Eliminar…)
+============================================================ */
+.ver-area-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Botón Editar (misma línea visual que .btn-accion del panel) */
+.btn-edit {
+  background: #e2e8f0; /* Slate-200 */
+  border: none;
+  padding: 0.45rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #0f172a;
+  transition: 0.25s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-edit:hover {
+  background: #cbd5e1; /* Slate-300 */
+}
+
+/* Opcional: botón Eliminar */
+.btn-edit-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.btn-edit-danger:hover {
+  background: #fecaca;
+}

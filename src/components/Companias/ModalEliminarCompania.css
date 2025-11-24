@@ -1,0 +1,166 @@
+/* ============================================================
+   🌙 BACKDROP — igual a todos los demás modales
+============================================================ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+  backdrop-filter: blur(2px);
+}
+
+/* ============================================================
+   🧩 CARD PRINCIPAL — estilo uniforme del proyecto
+============================================================ */
+.modal-card {
+  background: #ffffff;
+  width: 600px;
+  max-width: 95%;
+
+  padding: 2rem 1.6rem;
+  border-radius: 14px;
+
+  display: flex;
+  flex-direction: column;
+
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 35px rgba(0, 0, 0, 0.22);
+
+  animation: fadeIn 0.25s ease;
+
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+/* ============================================================
+   🧭 HEADER
+============================================================ */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.45rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: 0.15s ease;
+  color: #475569;
+}
+
+.close-btn:hover {
+  opacity: 1;
+}
+
+/* ============================================================
+   📄 BODY — texto, contadores, advertencias
+============================================================ */
+.modal-body {
+  flex: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 0.5rem;
+  color: #1e293b;
+  font-size: 0.96rem;
+}
+
+.modal-body p {
+  margin: 0;
+  line-height: 1.45rem;
+}
+
+.modal-body ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #475569;
+}
+
+.modal-body strong {
+  color: #0f172a;
+}
+
+/* ============================================================
+   ⚠️ ERRORES / ALERTAS
+============================================================ */
+.modal-error {
+  color: #dc2626;
+  font-weight: 600;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+/* ============================================================
+   🔘 FOOTER — Botones alineados a la derecha
+============================================================ */
+.modal-footer {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+  margin-top: 1.3rem;
+
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+/* Botón cancelar */
+.btn-cancelar {
+  background: #e2e8f0;
+  color: #0f172a;
+  padding: 0.65rem 1.3rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btn-cancelar:hover {
+  background: #cbd5e1;
+}
+
+.btn-accion-eliminar {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.btn-accion-eliminar:hover {
+  background: #fecaca;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   ✨ Animación
+============================================================ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

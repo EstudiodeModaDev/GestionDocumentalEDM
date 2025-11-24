@@ -1,28 +1,34 @@
-// ================================================
+// ============================================================
 // src/Services/UsuariosGD.service.ts
-// Gestión de usuarios en la lista UsuariosGD
-// ================================================
+// Gestión de usuarios en la lista UsuariosGD — versión REFACTORIZADA
+// ------------------------------------------------------------
+// Incluye:
+//   ✔ ensureIds global
+//   ✔ esc global
+//   ✔ normalizeRolStrict
+//   ✔ toSPModel
+//   ✔ upsertInList
+//   ✔ Código más limpio, robusto y mantenible
+// ============================================================
 
-import { GraphRest } from "../graph/GraphRest";
+import type { GraphRest } from "../graph/GraphRest";
 import type { UsuarioGD, RolUsuario } from "../Models/UsuarioGD";
+import { ensureIds, esc, normalizeRolStrict, toSPModel, upsertInList } from "../utils/Commons";
 
-/** ▶ Modelo de entrada para crear/actualizar usuarios */
+// ------------------------------------------------------------
+// Modelo utilizado al crear/actualizar un usuario
+// ------------------------------------------------------------
 export interface UsuarioGDInput {
   Nombre: string;
   Correo: string;
   Rol: RolUsuario;
-  CompaniaID?: string; // ← será el NOMBRE de la compañía
-  AreaID?: string;     // ← será el NOMBRE del área
+  CompaniaID?: string; // ← nombre de la compañía
+  AreaID?: string;     // ← nombre del área
 }
 
-/**
- * Servicio para trabajar con la lista "UsuariosGD"
- * ------------------------------------------------
- * ✔ Obtener todos los usuarios
- * ✔ Obtener por correo
- * ✔ Crear/actualizar usuario (upsert)
- * ✔ Eliminar usuario por correo
- */
+// ------------------------------------------------------------
+// SERVICIO PRINCIPAL
+// ------------------------------------------------------------
 export class UsuariosGDService {
   private graph: GraphRest;
   private hostname: string;
@@ -44,107 +50,43 @@ export class UsuariosGDService {
     this.listName = listName;
   }
 
-  /* ============================================================
-     🔹 Utilidad OData
-  ============================================================ */
-  private esc(s: string) {
-    return String(s).replace(/'/g, "''");
+  // ============================================================
+  // 🔹 Resolver SiteId y ListId usando helper global (Commons)
+  // ============================================================
+  private async ensureBase() {
+    const ids = await ensureIds(
+      this.siteId,
+      this.listId,
+      this.graph,
+      this.hostname,
+      this.sitePath,
+      this.listName
+    );
+
+    this.siteId = ids.siteId;
+    this.listId = ids.listId;
   }
 
-  /* ============================================================
-     🔹 Cache de siteId / listId
-  ============================================================ */
-  private loadCache() {
-    try {
-      const k = `sp:${this.hostname}${this.sitePath}:${this.listName}`;
-      const raw = localStorage.getItem(k);
-      if (raw) {
-        const { siteId, listId } = JSON.parse(raw);
-        if (siteId) this.siteId = siteId;
-        if (listId) this.listId = listId;
-      }
-    } catch {}
-  }
-
-  private saveCache() {
-    try {
-      const k = `sp:${this.hostname}${this.sitePath}:${this.listName}`;
-      localStorage.setItem(
-        k,
-        JSON.stringify({ siteId: this.siteId, listId: this.listId })
-      );
-    } catch {}
-  }
-
-  /* ============================================================
-     🔹 Resolver IDs de la lista
-  ============================================================ */
-  private async ensureIds() {
-    if (!this.siteId || !this.listId) this.loadCache();
-
-    if (!this.siteId) {
-      const site = await this.graph.get<any>(
-        `/sites/${this.hostname}:${this.sitePath}`
-      );
-      this.siteId = site?.id;
-      if (!this.siteId) throw new Error("No se pudo resolver siteId");
-      this.saveCache();
-    }
-
-    if (!this.listId) {
-      const lists = await this.graph.get<any>(
-        `/sites/${this.siteId}/lists?$filter=displayName eq '${this.esc(
-          this.listName
-        )}'`
-      );
-
-      const list = lists?.value?.[0];
-      if (!list?.id) throw new Error(`Lista no encontrada: ${this.listName}`);
-
-      this.listId = list.id;
-      this.saveCache();
-    }
-  }
-
-  /* ============================================================
-     🔹 Normalizar rol recibido desde SP
-  ============================================================ */
-  private normalizeRol(raw: any): RolUsuario {
-    const value = String(raw ?? "").trim() as RolUsuario;
-
-    const allowed: RolUsuario[] = [
-      "AdministradorGeneral",
-      "AdministradorCom",
-      "ResponsableArea",
-      "UsuarioArea",
-      "SinAcceso",
-    ];
-
-    if (!allowed.includes(value)) return "SinAcceso";
-    return value;
-  }
-
-  /* ============================================================
-     🔹 Convertir item del SP → UsuarioGD
-  ============================================================ */
+  // ============================================================
+  // 🔹 Convertir item recibido de SharePoint → UsuarioGD
+  //    Usamos helper toSPModel para estandarizar esta parte
+  // ============================================================
   private toModel(item: any): UsuarioGD {
-    const f = item?.fields ?? {};
-
-    return {
+    return toSPModel<UsuarioGD>(item, (f) => ({
       ID: String(item?.ID ?? item.id ?? ""),
-      Title: f.Nombre ?? f.Title ?? "",
+      Title: f.Title ?? "",
       Correo: f.Correo ?? "",
-      Rol: this.normalizeRol(f.Rol),
-      CompaniaID: f.CompaniaID ? String(f.CompaniaID) : undefined,
-      AreaID: f.AreaID ? String(f.AreaID) : undefined,
-    };
+      Rol: normalizeRolStrict(f.Rol),           // <-- nuevo helper global
+      CompaniaID: f.CompaniaID || undefined,
+      AreaID: f.AreaID || undefined
+    }));
   }
 
-  /* ============================================================
-     🔹 Obtener TODOS los usuarios
-  ============================================================ */
+  // ============================================================
+  // 🔹 Obtener TODOS los usuarios
+  // ============================================================
   async getAll(): Promise<UsuarioGD[]> {
-    await this.ensureIds();
+    await this.ensureBase();
 
     const res = await this.graph.get<any>(
       `/sites/${this.siteId}/lists/${this.listId}/items?$expand=fields`
@@ -153,13 +95,13 @@ export class UsuariosGDService {
     return (res.value ?? []).map((x: any) => this.toModel(x));
   }
 
-  /* ============================================================
-     🔹 Obtener por correo (null si no existe)
-  ============================================================ */
+  // ============================================================
+  // 🔹 Obtener usuario por correo
+  // ============================================================
   async getByCorreo(correo: string): Promise<UsuarioGD | null> {
-    await this.ensureIds();
+    await this.ensureBase();
 
-    const filter = `fields/Correo eq '${this.esc(correo)}'`;
+    const filter = `fields/Correo eq '${esc(correo)}'`;
 
     const res = await this.graph.get<any>(
       `/sites/${this.siteId}/lists/${this.listId}/items?$expand=fields&$filter=${filter}`
@@ -171,49 +113,42 @@ export class UsuariosGDService {
     return this.toModel(items[0]);
   }
 
-  /* ============================================================
-     🔹 UPSERT de usuario por correo
-     ------------------------------------------------------------
-     Si existe → lo actualiza
-     Si NO existe → lo crea
-  ============================================================ */
+  // ============================================================
+  // 🔹 UPSERT por correo  
+  //    ✔ si existe → UPDATE  
+  //    ✔ si no existe → CREATE  
+  //    Implementado usando helper genérico upsertInList()
+  // ============================================================
   async upsertByCorreo(input: UsuarioGDInput): Promise<UsuarioGD> {
-    await this.ensureIds();
+    await this.ensureBase();
 
-    const existing = await this.getByCorreo(input.Correo);
+    const filter = `fields/Correo eq '${esc(input.Correo)}'`;
 
-    const payload = {
+    const fields = {
       Title: input.Nombre,
-      Nombre: input.Nombre,
       Correo: input.Correo,
       Rol: input.Rol,
-      CompaniaID: input.CompaniaID ?? undefined,
-      AreaID: input.AreaID ?? undefined,
+      CompaniaID: input.CompaniaID ?? "",
+      AreaID: input.AreaID ?? ""
     };
 
-    if (!existing) {
-      // ➕ Crear
-      const created = await this.graph.post<any>(
-        `/sites/${this.siteId}/lists/${this.listId}/items`,
-        { fields: payload }
-      );
-      return this.toModel(created);
-    }
-
-    // 🔁 Actualizar
-    await this.graph.patch<any>(
-      `/sites/${this.siteId}/lists/${this.listId}/items/${existing.ID}/fields`,
-      payload
+    // Helper genérico hace crear/actualizar automáticamente
+    const raw = await upsertInList(
+      this.graph,
+      this.siteId!,
+      this.listId!,
+      filter,
+      fields
     );
 
-    return { ...existing, ...payload };
+    return this.toModel(raw);
   }
 
-  /* ============================================================
-     🔹 ELIMINAR usuario por correo
-  ============================================================ */
+  // ============================================================
+  // 🔹 Eliminar usuario por correo
+  // ============================================================
   async deleteByCorreo(correo: string): Promise<void> {
-    await this.ensureIds();
+    await this.ensureBase();
 
     const existing = await this.getByCorreo(correo);
     if (!existing) return;

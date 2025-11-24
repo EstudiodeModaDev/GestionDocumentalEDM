@@ -1,0 +1,389 @@
+/* =========================================================================
+   ModalGestionUsuarios.css
+   Estilos LIMPIOS — Unificados para todos los modales de gestión EDM
+   ========================================================================= */
+
+/* === TOKENS GENERALES === */
+:root {
+  --color-text: #111827;
+  --color-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
+  --color-bg: #ffffff;
+  --color-hover: #f9fafb;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+
+  --radius: 12px;
+  --radius-sm: 7px;
+
+  --shadow: 0 10px 35px rgba(0, 0, 0, 0.18);
+}
+
+/* =========================================================================
+   MODAL — BACKDROP Y CARD
+   ========================================================================= */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: 1.5rem;
+  animation: fadeIn 0.15s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-card {
+  background: var(--color-bg);
+  width: 100%;
+  max-width: 820px;
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow);
+  animation: zoomIn 0.18s ease-out;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+@keyframes zoomIn {
+  from { transform: scale(0.96); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* =========================================================================
+   HEADER
+   ========================================================================= */
+
+.modal-header {
+  padding: 0.5rem 1.4rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 1.3rem;
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  transition: 0.2s;
+}
+.modal-close:hover {
+  color: var(--color-text);
+}
+
+/* =========================================================================
+   BODY GENERAL
+   ========================================================================= */
+
+.modal-body {
+  padding: 1.5rem;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.modal-section {
+  margin-bottom: 1.7rem;
+}
+
+.modal-section h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 0.55rem;
+}
+
+/* =========================================================================
+   ALERTAS
+   ========================================================================= */
+
+.modal-error,
+.modal-info {
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  margin-bottom: 0.8rem;
+}
+
+.modal-error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.modal-info {
+  background: #e0e7ff;
+  color: #1e40af;
+}
+
+/* =========================================================================
+   LISTA DE USUARIOS
+   ========================================================================= */
+
+.usuariosArea-lista {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.usuariosArea-item {
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--color-border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: 0.2s;
+}
+.usuariosArea-item:last-child {
+  border-bottom: none;
+}
+
+.usuariosArea-item:hover {
+  background: var(--color-hover);
+}
+
+.usuariosArea-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.usuariosArea-main span:nth-child(1) {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.usuariosArea-main span:nth-child(2) {
+  font-size: 0.87rem;
+  color: var(--color-muted);
+}
+.usuariosArea-main span:nth-child(3) {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+/* Acciones */
+.usuariosArea-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.usuariosArea-actions button {
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: 0.2s;
+}
+
+.usuariosArea-actions button:first-child {
+  background: var(--primary);
+  color: white;
+}
+.usuariosArea-actions button:first-child:hover {
+  background: var(--primary-hover);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: white;
+}
+.btn-danger:hover {
+  background: var(--danger-hover);
+}
+
+/* =========================================================================
+   EDICIÓN DE UBICACIÓN
+   ========================================================================= */
+
+select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: 0.95rem;
+  margin: 0.4rem 0;
+  transition: 0.2s;
+}
+
+select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+/* =========================================================================
+   AUTOCOMPLETE + CHIPS
+   ========================================================================= */
+
+.autocomplete-container {
+  position: relative;
+}
+
+.autocomplete-input {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: 0.95rem;
+  transition: 0.2s;
+}
+
+.autocomplete-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+
+/* Dropdown flotante */
+.autocomplete-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 40;
+  box-shadow: var(--shadow);
+}
+
+.autocomplete-item {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--color-border-light);
+  cursor: pointer;
+  transition: 0.15s;
+}
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: var(--color-hover);
+}
+
+.autocomplete-item-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.autocomplete-item-email {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+/* Chips */
+.chips-wrapper {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.selected-admin-chip {
+  background: var(--color-border-light);
+  border: 1px solid var(--color-border);
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.selected-admin-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.selected-admin-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.selected-admin-email {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.selected-admin-remove {
+  background: var(--danger);
+  color: white;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.selected-admin-remove:hover {
+  background: var(--danger-hover);
+}
+
+/* =========================================================================
+   FOOTER
+   ========================================================================= */
+
+.modal-footer {
+  padding: 0.5rem 1.4rem;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.btn-secundario {
+  background: #f3f4f6;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: 0.2s;
+}
+.btn-secundario:hover {
+  background: #e5e7eb;
+}
+
+.btn-primario {
+  background: var(--primary);
+  color: white;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-primario:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+.btn-primario:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

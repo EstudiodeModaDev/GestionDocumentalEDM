@@ -1,19 +1,20 @@
+// ============================================================
 // src/Services/Areas.service.ts
-import { GraphRest } from "../graph/GraphRest";
-import type { AreaGD } from "../Models/Area";
-import { ensureIds } from "../utils/Commons";
+// Servicio oficial de Gestión de Áreas — COMPLETO con deleteFolder()
+// ============================================================
 
-/**
- * Servicio de gestión de Áreas
- * ------------------------------------------------------------
- * ✔ Registra nuevas áreas en la lista "AreasGD"
- * ✔ Crea automáticamente la carpeta del área en:
- *
- *     Gestión Documental / {Compañía} / {Área}
- *
- * ✔ Ahora también:
- *    • Actualiza el ResponsableId de un área concreta
- */
+import type { AreaGD } from "../Models/Area";
+import type { GraphRest } from "../graph/GraphRest";
+
+// nuevos import despues del refactor
+import {
+  ensureIds,
+  resolveDriveByName,
+  ensureFolderInDrive,
+  createFolder,
+  findFolder
+} from "../utils/Commons";
+
 export class AreasService {
   private graph: GraphRest;
   private hostname: string;
@@ -22,7 +23,9 @@ export class AreasService {
 
   private siteId?: string;
   private listId?: string;
-  private driveId: string = ""; // <-- ID de la biblioteca "Gestión Documental"
+
+  // ⭐ DriveId de la biblioteca "Gestión Documental"
+  private driveId: string = "";
 
   constructor(
     graph: GraphRest,
@@ -36,13 +39,13 @@ export class AreasService {
     this.listName = listName;
   }
 
-  /* ============================================================
-     🔹 Convierte un ítem SP → AreaGD
-  ============================================================ */
+  // ============================================================
+  // 🔹 Convertir un SP ListItem → AreaGD
+  // ============================================================
   private toModel(item: any): AreaGD {
     const f = item?.fields ?? {};
     return {
-      Id: String(item?.ID ?? item.id ?? ""),
+      Id: String(item?.ID ?? item?.id ?? ""),
       Title: f.Title ?? "",
       AdministradorId: f.AdministradorId ?? "",
       FechaCreacion: f.FechaCreacion ?? "",
@@ -52,81 +55,18 @@ export class AreasService {
     };
   }
 
-  /* ============================================================
-     🔹 Resuelve la biblioteca correcta: Gestión Documental
-  ============================================================ */
-  private async resolveDrive(): Promise<string> {
-    if (this.driveId) return this.driveId;
-
-    if (!this.siteId)
-      throw new Error("❌ siteId indefinido. Ejecuta ensureIds primero.");
-
-    const expectedUrl =
-      "https://estudiodemoda.sharepoint.com/sites/TransformacionDigital/IN/Test/Gestion%20Documental";
-
-    const drives = await this.graph.get<any>(`/sites/${this.siteId}/drives`);
-
-    const matched = drives.value?.find(
-      (d: any) =>
-        d.name?.toLowerCase() === "gestion documental" &&
-        d.webUrl?.toLowerCase() === expectedUrl.toLowerCase()
-    );
-
-    if (!matched?.id)
-      throw new Error("❌ No se encontró la biblioteca 'Gestión Documental'.");
-
-    this.driveId = matched.id;
-
-    console.log("📂 Biblioteca confirmada:", matched.webUrl);
-    return this.driveId;
-  }
-
-  /* ============================================================
-     🔹 Asegura que exista la carpeta de la compañía
-  ============================================================ */
-  private async ensureCompanyFolder(companyName: string): Promise<string> {
-    if (!this.driveId) throw new Error("❌ driveId indefinido");
-
-    // Listar carpetas raíz
-    const children = await this.graph.get<any>(
-      `/drives/${this.driveId}/root/children?$filter=folder ne null`
-    );
-
-    const folder = children.value?.find(
-      (f: any) =>
-        f.name?.toLowerCase().trim() === companyName.toLowerCase().trim()
-    );
-
-    if (folder) {
-      console.log("📁 Carpeta de compañía encontrada:", folder.name);
-      return folder.id;
+  // ============================================================
+  // 🔹 Crear área + carpeta
+  // ============================================================
+  async create(area: Omit<AreaGD, "Id">): Promise<AreaGD> {
+    if (!area.Title?.trim()) {
+      throw new Error("❌ Debe especificarse el nombre del área.");
+    }
+    if (!area.NombreCompania?.trim()) {
+      throw new Error("❌ Debe especificarse la compañía del área.");
     }
 
-    // Crear carpeta de la compañía
-    const created = await this.graph.post<any>(
-      `/drives/${this.driveId}/root/children`,
-      {
-        name: companyName,
-        folder: {},
-        "@microsoft.graph.conflictBehavior": "fail",
-      }
-    );
-
-    console.log("📁 Carpeta de compañía creada:", created.webUrl);
-    return created.id;
-  }
-
-  /* ============================================================
-     🔹 Crear nueva área dentro de la carpeta de la compañía
-  ============================================================ */
-  async create(area: Omit<AreaGD, "Id">): Promise<AreaGD> {
-    if (!area.Title?.trim())
-      throw new Error("❌ El nombre del área es obligatorio.");
-
-    if (!area.NombreCompania?.trim())
-      throw new Error("❌ Debe especificarse la compañía.");
-
-    // 1️⃣ Resolver IDs base
+    // 1) IDs de lista
     const ids = await ensureIds(
       this.siteId,
       this.listId,
@@ -135,14 +75,18 @@ export class AreasService {
       this.sitePath,
       this.listName
     );
-
     this.siteId = ids.siteId;
     this.listId = ids.listId;
 
-    // 2️⃣ Obtener la biblioteca correcta
-    this.driveId = await this.resolveDrive();
+    // 2) Drive
+    this.driveId = await resolveDriveByName(
+      this.graph,
+      this.siteId!,
+      "Gestión Documental"
+    );
 
-    // 3️⃣ Insertar el registro en la lista
+
+    // 3) Crear registro del área
     const payload = {
       fields: {
         Title: area.Title,
@@ -150,43 +94,40 @@ export class AreasService {
         FechaCreacion: area.FechaCreacion ?? new Date().toISOString(),
         Activa: area.Activa ?? true,
         NombreCompania: area.NombreCompania,
-        ResponsableId: area.ResponsableId, // normalmente vacío al crear
+        ResponsableId: area.ResponsableId ?? "",
       },
     };
 
-    const createdItem = await this.graph.post<any>(
+    const item = await this.graph.post<any>(
       `/sites/${this.siteId}/lists/${this.listId}/items`,
       payload
     );
 
-    // 4️⃣ Crear carpeta dentro de la compañía
+    // 4) Crear carpeta del área
     try {
-      const companyFolderId = await this.ensureCompanyFolder(
-        area.NombreCompania
-      );
+     const companyFolderId = await ensureFolderInDrive(
+      this.graph,
+      this.driveId,
+      area.NombreCompania
+    );
 
-      const newFolder = await this.graph.post<any>(
-        `/drives/${this.driveId}/items/${companyFolderId}/children`,
-        {
-          name: area.Title,
-          folder: {},
-          "@microsoft.graph.conflictBehavior": "fail",
-        }
-      );
 
-      console.log("📁 Carpeta del área creada:", newFolder.webUrl);
+    await createFolder(this.graph, this.driveId, companyFolderId, area.Title);
+
     } catch (err: any) {
-      if (err?.status === 409)
-        console.warn("⚠️ La carpeta del área ya existe.");
-      else console.error("❌ Error al crear carpeta del área:", err);
+      if (err?.status === 409) {
+        console.warn("⚠️ Carpeta de área ya existía.");
+      } else {
+        console.error("❌ Error creando carpeta del área:", err);
+      }
     }
 
-    return this.toModel(createdItem);
+    return this.toModel(item);
   }
 
-  /* ============================================================
-     🔹 Listar todas las áreas
-  ============================================================ */
+  // ============================================================
+  // 🔹 Obtener todas las áreas
+  // ============================================================
   async getAll(): Promise<AreaGD[]> {
     const ids = await ensureIds(
       this.siteId,
@@ -196,7 +137,6 @@ export class AreasService {
       this.sitePath,
       this.listName
     );
-
     this.siteId = ids.siteId;
     this.listId = ids.listId;
 
@@ -204,17 +144,13 @@ export class AreasService {
       `/sites/${this.siteId}/lists/${this.listId}/items?$expand=fields`
     );
 
-    return (res.value ?? []).map((x: any) => this.toModel(x));
+    return (res.value ?? []).map((i: any) => this.toModel(i));
   }
 
-  /* ============================================================
-     🔹 Actualizar ResponsableId de un área concreta
-     ------------------------------------------------------------
-     - areaId: ID del ítem de área en la lista AreasGD
-     - correoResponsable: correo del nuevo responsable
-       (o null/"" para limpiarlo)
-  ============================================================ */
-  async setResponsable(areaId: string, correoResponsable: string | null): Promise<void> {
+  // ============================================================
+  // 🔹 Actualizar responsable
+  // ============================================================
+  async setResponsable(areaId: string, correo: string | null): Promise<void> {
     const ids = await ensureIds(
       this.siteId,
       this.listId,
@@ -227,13 +163,110 @@ export class AreasService {
     this.siteId = ids.siteId;
     this.listId = ids.listId;
 
-    const payload = {
-      ResponsableId: correoResponsable ?? "",
-    };
-
-    await this.graph.patch<any>(
+    await this.graph.patch(
       `/sites/${this.siteId}/lists/${this.listId}/items/${areaId}/fields`,
-      payload
+      {
+        ResponsableId: correo ?? "",
+      }
+    );
+  }
+
+  // ============================================================
+  // 🔹 Actualizar campos del área
+  // ============================================================
+  async update(areaId: string, fields: Record<string, any>): Promise<void> {
+    const ids = await ensureIds(
+      this.siteId,
+      this.listId,
+      this.graph,
+      this.hostname,
+      this.sitePath,
+      this.listName
+    );
+
+    this.siteId = ids.siteId;
+    this.listId = ids.listId;
+
+    await this.graph.patch(
+      `/sites/${this.siteId}/lists/${this.listId}/items/${areaId}/fields`,
+      fields
+    );
+  }
+
+  // ============================================================
+  // 🔥 NUEVO — Eliminar carpeta del área
+  // ============================================================
+  async deleteFolder(area: AreaGD): Promise<void> {
+    if (!area?.Title || !area?.NombreCompania) return;
+
+    // 1) Asegurar drive y folders base
+    if (!this.siteId || !this.listId) {
+      const ids = await ensureIds(
+        this.siteId,
+        this.listId,
+        this.graph,
+        this.hostname,
+        this.sitePath,
+        this.listName
+      );
+      this.siteId = ids.siteId;
+      this.listId = ids.listId;
+    }
+
+    this.driveId = await resolveDriveByName(
+      this.graph,
+      this.siteId!,
+      "Gestión Documental"
+    );
+
+
+    // 2) Ubicar carpeta principal de compañía
+    const companyFolderId = await ensureFolderInDrive(
+  this.graph,
+  this.driveId,
+  area.NombreCompania
+);
+
+    // 3) Buscar carpeta del área dentro de la compañía
+    const areaFolder = await findFolder(
+      this.graph,
+      this.driveId,
+      companyFolderId,
+      area.Title
+    );
+
+
+    if (!areaFolder) {
+      console.warn("⚠️ No se encontró carpeta para esta área.");
+      return;
+    }
+
+    // 4) Eliminar carpeta
+    await this.graph.delete(
+      `/drives/${this.driveId}/items/${areaFolder.id}`
+    );
+
+    console.log("🗑️ Carpeta eliminada:", areaFolder.name);
+  }
+
+  // ============================================================
+  // 🔹 Eliminar registro del área (SP List)
+  // ============================================================
+  async delete(areaId: string): Promise<void> {
+    const ids = await ensureIds(
+      this.siteId,
+      this.listId,
+      this.graph,
+      this.hostname,
+      this.sitePath,
+      this.listName
+    );
+
+    this.siteId = ids.siteId;
+    this.listId = ids.listId;
+
+    await this.graph.delete(
+      `/sites/${this.siteId}/lists/${this.listId}/items/${areaId}`
     );
   }
 }

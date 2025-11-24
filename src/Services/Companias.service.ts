@@ -1,15 +1,21 @@
 // src/Services/Companias.service.ts
 import { GraphRest } from "../graph/GraphRest";
 import type { CompaniaGD } from "../Models/CompaniaGD";
-import { ensureIds, ensureDriveId } from "../utils/Commons";
+
+import {
+  ensureIds,
+  resolveDriveByName,
+  ensureFolderInDrive,
+  findFolder,
+} from "../utils/Commons";
 
 /**
  * Servicio de gestión de Compañías
  * ------------------------------------------------------------
- * ✔ Registra las compañías en la lista "CompaniasGD"
- * ✔ Crea automáticamente una carpeta por compañía en la biblioteca
- *   "Gestión Documental"
- * ✔ Será el nivel raíz donde se anidarán las Áreas y Subáreas
+ * ✔ Registra compañías en la lista "CompaniasGD"
+ * ✔ Crea carpeta raíz en "Gestión Documental"
+ * ✔ Actualiza o elimina carpeta
+ * ✔ Limpio, modular y basado en helpers reutilizables
  */
 export class CompaniasService {
   private graph: GraphRest;
@@ -19,13 +25,13 @@ export class CompaniasService {
 
   private siteId?: string;
   private listId?: string;
-  private driveId: string = ""; // ID de la biblioteca “Gestión Documental”
+  private driveId: string = "";
 
   constructor(
     graph: GraphRest,
     hostname = "estudiodemoda.sharepoint.com",
     sitePath = "/sites/TransformacionDigital/IN/Test",
-    listName = "CompaiasGD" // ⚠️ Nombre exacto de la lista en SharePoint
+    listName = "CompaniasGD"  
   ) {
     this.graph = graph;
     this.hostname = hostname;
@@ -34,8 +40,8 @@ export class CompaniasService {
   }
 
   /* ============================================================
-     🔹 Conversión de un item de SharePoint a nuestro modelo local
-     ============================================================ */
+      🔹 Conversión a modelo local
+  ============================================================ */
   private toModel(item: any): CompaniaGD {
     const f = item?.fields ?? {};
     return {
@@ -48,14 +54,9 @@ export class CompaniasService {
   }
 
   /* ============================================================
-     🔹 Crear una nueva compañía (lista + carpeta en biblioteca)
-     ============================================================ */
-  async create(compania: Omit<CompaniaGD, "Id">): Promise<CompaniaGD> {
-    if (!compania.Title?.trim()) {
-      throw new Error("El nombre de la compañía (Title) es obligatorio.");
-    }
-
-    // 1️⃣ Resolver IDs base: sitio, lista y biblioteca
+      🔹 Resolver IDs: sitio, lista, drive
+  ============================================================ */
+  private async ensureBase() {
     const ids = await ensureIds(
       this.siteId,
       this.listId,
@@ -64,20 +65,28 @@ export class CompaniasService {
       this.sitePath,
       this.listName
     );
+
     this.siteId = ids.siteId;
     this.listId = ids.listId;
 
-    const driveIds = await ensureDriveId(
-      this.siteId,
-      this.driveId,
+    this.driveId = await resolveDriveByName(
       this.graph,
-      this.hostname,
-      this.sitePath,
-      "Gestion Documental" // Nombre visible de la biblioteca
+      this.siteId!,
+      "Gestión Documental"
     );
-    this.driveId = driveIds.driveId;
+  }
 
-    // 2️⃣ Registrar en la lista "CompaniasGD"
+  /* ============================================================
+      🔹 Crear Compañía
+  ============================================================ */
+  async create(compania: Omit<CompaniaGD, "Id">): Promise<CompaniaGD> {
+    if (!compania.Title?.trim()) {
+      throw new Error("El nombre de la compañía (Title) es obligatorio.");
+    }
+
+    await this.ensureBase();
+
+    // Registrar en lista
     const payload = {
       fields: {
         Title: compania.Title,
@@ -92,53 +101,106 @@ export class CompaniasService {
       payload
     );
 
-    // 3️⃣ Crear carpeta raíz con el nombre de la compañía
-    try {
-      console.log(
-        `🧩 Creando carpeta para la compañía '${compania.Title}' en biblioteca 'Gestión Documental'`
-      );
+    // Crear carpeta raíz de compañía
+    await ensureFolderInDrive(this.graph, this.driveId, compania.Title);
 
-      await this.graph.post<any>(
-        `/drives/${this.driveId}/root/children`,
-        {
-          name: compania.Title,
-          folder: {},
-          "@microsoft.graph.conflictBehavior": "fail", // evita sobrescritura
-        }
-      );
-
-      console.log(`✅ Carpeta creada correctamente: ${compania.Title}`);
-    } catch (err: any) {
-      if (err?.status === 409) {
-        console.warn("⚠️ La carpeta ya existía, se omitió la creación.");
-      } else {
-        console.error("❌ Error al crear la carpeta de la compañía:", err);
-      }
-    }
-
-    // Retornamos el modelo local
     return this.toModel(createdItem);
   }
 
   /* ============================================================
-     🔹 Listar todas las compañías registradas
-     ============================================================ */
+      🔹 Listar
+  ============================================================ */
   async getAll(): Promise<CompaniaGD[]> {
-    const ids = await ensureIds(
-      this.siteId,
-      this.listId,
-      this.graph,
-      this.hostname,
-      this.sitePath,
-      this.listName
-    );
-    this.siteId = ids.siteId;
-    this.listId = ids.listId;
+    await this.ensureBase();
 
     const res = await this.graph.get<any>(
       `/sites/${this.siteId}/lists/${this.listId}/items?$expand=fields`
     );
 
     return (res.value ?? []).map((x: any) => this.toModel(x));
+  }
+
+  /* ============================================================
+      🔹 Renombrar carpeta
+  ============================================================ */
+  private async renameFolder(oldName: string, newName: string): Promise<void> {
+    await this.ensureBase();
+
+    const folder = await findFolder(this.graph, this.driveId, "root", oldName);
+    if (!folder) {
+      console.warn(`⚠️ Carpeta no encontrada: '${oldName}'`);
+      return;
+    }
+
+    await this.graph.patch(
+      `/drives/${this.driveId}/items/${folder.id}`,
+      { name: newName }
+    );
+
+    console.log(`🔄 Carpeta renombrada: ${oldName} → ${newName}`);
+  }
+
+  /* ============================================================
+      🔹 Eliminar carpeta
+  ============================================================ */
+  private async deleteFolder(name: string): Promise<void> {
+    await this.ensureBase();
+
+    const folder = await findFolder(this.graph, this.driveId, "root", name);
+    if (!folder) {
+      console.warn(`⚠️ Carpeta no encontrada: '${name}'`);
+      return;
+    }
+
+    await this.graph.delete(
+      `/drives/${this.driveId}/items/${folder.id}`
+    );
+  }
+
+  /* ============================================================
+      🔹 Actualizar Compañía
+  ============================================================ */
+  async updateNombreYAdmin(
+    companiaId: string,
+    oldTitle: string,
+    newTitle: string,
+    newAdminCorreo: string
+  ): Promise<CompaniaGD> {
+    await this.ensureBase();
+
+    // Actualizar lista
+    await this.graph.patch(
+      `/sites/${this.siteId}/lists/${this.listId}/items/${companiaId}/fields`,
+      {
+        Title: newTitle,
+        AdministradorCom: newAdminCorreo,
+      }
+    );
+
+    // Renombrar carpeta si cambió
+    if (oldTitle !== newTitle) {
+      await this.renameFolder(oldTitle, newTitle);
+    }
+
+    const updated = await this.graph.get(
+      `/sites/${this.siteId}/lists/${this.listId}/items/${companiaId}?$expand=fields`
+    );
+
+    return this.toModel(updated);
+  }
+
+  /* ============================================================
+      🔹 Eliminar compañía + carpeta
+  ============================================================ */
+  async deleteWithFolder(companiaId: string, title: string): Promise<void> {
+    await this.ensureBase();
+
+    await this.deleteFolder(title);
+
+    await this.graph.delete(
+      `/sites/${this.siteId}/lists/${this.listId}/items/${companiaId}`
+    );
+
+    console.log(`🗑️ Compañía eliminada: ${title}`);
   }
 }

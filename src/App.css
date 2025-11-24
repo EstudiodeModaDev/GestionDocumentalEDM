@@ -263,3 +263,27 @@ html, body, #root {
   cursor: pointer;
 }
 
+/* ============================================================
+   🚫 ELIMINAR SCROLL GENERAL
+   Estos overrides eliminan scroll del layout completo
+============================================================ */
+
+/* Evita scroll en toda la página */
+html, body, #root {
+  overflow: hidden !important;
+}
+
+/* El layout principal no debe desplazar vertical */
+.layout--withSidebar {
+  overflow: hidden !important;
+}
+
+/* Contenido principal sin scroll */        
+/* .content--withSidebar {
+  overflow: hidden !important;
+} */
+
+/* Sidebar sin scroll */
+/* .sidebar__nav {
+  overflow: hidden !important;
+} */
