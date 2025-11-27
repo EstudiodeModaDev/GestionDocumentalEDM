@@ -9,7 +9,7 @@ import { useGraphServices } from "../../graph/GrapServicesContext";
 import { useNav } from "../Context/NavContext";
 
 import "./VerAreas.css";
-import ModalNuevaArea from "../Areas/ModalNuevaArea";
+import ModalNuevaArea from "../Areas/ModalAreaActions";
 
 export default function VerAreas({ companiaName }: { companiaName: string }) {
   const { Areas, Companias } = useGraphServices();
@@ -25,6 +25,10 @@ export default function VerAreas({ companiaName }: { companiaName: string }) {
 
   // ID interno de la compañía (para manejar expand/collapse)
   const [companiaId, setCompaniaId] = React.useState<string>("");
+
+  // refresh auto
+  const { refreshFlag } = useNav();
+
 
   /* ============================================================
      🔹 Obtener ID real de la compañía (c-XX)
@@ -45,23 +49,31 @@ export default function VerAreas({ companiaName }: { companiaName: string }) {
   /* ============================================================
      🔹 Cargar áreas de la compañía
   ============================================================ */
-  const loadAreas = React.useCallback(async () => {
-    setLoading(true);
+  /* ============================================================
+   🔹 Cargar áreas de la compañía
+============================================================ */
+const loadAreas = React.useCallback(async () => {
+  setLoading(true);
 
-    const all = await Areas.getAll();
-    const filtered = all.filter(
-      (a) =>
-        a.NombreCompania?.trim().toLowerCase() ===
-        companiaName.trim().toLowerCase()
-    );
+  const all = await Areas.getAll();
+  const filtered = all.filter(
+    (a) =>
+      a.NombreCompania?.trim().toLowerCase() ===
+      companiaName.trim().toLowerCase()
+  );
 
-    setAreas(filtered);
-    setLoading(false);
-  }, [Areas, companiaName]);
+  setAreas(filtered);
+  setLoading(false);
+}, [Areas, companiaName]);
 
-  React.useEffect(() => {
-    loadAreas();
-  }, [loadAreas]);
+// 🔥 Recargar lista cuando:
+// - se crea un área
+// - se elimina un área
+// - se edita un área
+// - cualquier componente llama triggerRefresh()
+React.useEffect(() => {
+  loadAreas();
+}, [loadAreas, refreshFlag]);
 
   /* ============================================================
      🔹 Al seleccionar un área → navegar usando NavContext

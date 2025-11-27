@@ -1,10 +1,13 @@
+import type { UsuarioBasic } from "../../Models/Commons";
 
-import type { UsuarioBasic } from "../types/usersBasic";
+/* ============================================================
+   Convertir respuesta de Graph → UsuarioBasic
+   ============================================================ */
+export function toBasicUser(raw: any): UsuarioBasic | null {
+  if (!raw?.mail) return null;
 
-export function toBasicUser(u: any): UsuarioBasic | null {
-  if (!u?.mail) return null;
   return {
-    nombre: u.displayName ?? "",
-    correo: u.mail.toLowerCase(),
+    nombre: raw.displayName ?? "",
+    correo: raw.mail.toLowerCase(),
   };
 }

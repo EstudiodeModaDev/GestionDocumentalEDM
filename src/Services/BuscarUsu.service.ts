@@ -16,7 +16,8 @@
 // ============================================================
 
 import type { GraphRest } from "../graph/GraphRest";
-import { buildStartsWithQuery, esc, toBasicUser, type UsuarioBasic } from "../utils/Commons";
+import type { UsuarioBasic } from "../Models/Commons";
+import { buildStartsWithQuery, esc, toBasicUser } from "../utils/Commons";
 
 export class BuscarUsuService {
   private graph: GraphRest;

@@ -24,4 +24,27 @@ export type UserOption = {
   jobTitle?: string;  // opcional: para mostrar/filtrar
 };
 
+//nuevos types a exportar
+
+// ============================================================
+// Tipos usados por el modal y el hook modalnuevaarea
+// ============================================================
+
+/* ============================================================
+   Usuarios básicos (para autocompletados, selectores, etc.)
+   ============================================================ */
+
+export interface UsuarioBasic {
+  nombre: string;
+  correo: string;
+}
+
+export type NuevaAreaParams = {
+  nombre: string;
+  companiaName: string;
+  adminCorreo: string;
+  responsableCorreo?: string;
+};
+
+
 

@@ -1,107 +1,106 @@
+// ============================================================
 // src/components/Companias/CompaniasPanel.tsx
-import { useState, useEffect } from "react";
-import "./CompaniasPanel.css";
-import { useGraphServices } from "../../graph/GrapServicesContext";
-import type { CompaniaGD } from "../../Models/CompaniaGD";
+// ------------------------------------------------------------
+// Panel principal de gestión de Compañías
+// • Lista compañías desde SharePoint
+// • Abre modales para crear, editar y eliminar
+// • Usa el hook especializado useCompaniasPanel()
+// ============================================================
 
+import "./CompaniasPanel.css";
+
+// Servicios de Graph
+import { useGraphServices } from "../../graph/GrapServicesContext";
+
+// Modales
 import ModalNuevaCompania from "./ModalNuevaCompania";
 import ModalEditarCompania from "./ModalEditarCompania";
 import ModalEliminarCompania from "./ModalEliminarCompania";
 
-/**
- * Componente principal de gestión de Compañías
- * ------------------------------------------------------------
- * ✔ Lista compañías desde SharePoint
- * ✔ Crear nueva compañía (lista + carpeta + usuario admin)
- * ✔ Editar nombre/admin de compañía (renombra carpeta + actualiza refs)
- * ✔ Eliminar compañía (con validaciones de usuarios y áreas asociadas)
- */
+// UI Helpers reutilizables (estadochip es un componente pero es reutilizable)
+import EstadoChip from "../shared/EstadoChip";
+import { formatDate } from "../../utils/Commons";
+
+
+// Hook que contiene toda la lógica del panel
+import { useCompaniasPanel } from "../../Funcionalidades/Companias/useCompaniasPanel";
+
+
 export default function CompaniasPanel() {
-  const { Companias } = useGraphServices(); // servicio de compañías
 
-  const [companias, setCompanias] = useState<CompaniaGD[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // ------------------------------------------------------------
+  // Servicios disponibles desde el contexto
+  // ------------------------------------------------------------
+  const { Companias } = useGraphServices();
 
-  // Modales
-  const [modalNuevaAbierto, setModalNuevaAbierto] = useState(false);
-  const [modalEditarAbierto, setModalEditarAbierto] = useState(false);
-  const [modalEliminarAbierto, setModalEliminarAbierto] = useState(false);
+  // ------------------------------------------------------------
+  // Toda la lógica está encapsulada en el hook personalizado
+  // Esto mantiene el componente limpio y solo concentrado en UI
+  // ------------------------------------------------------------
+  const {
+    // Datos
+    companias,
+    loading,
+    error,
 
-  const [companiaSeleccionada, setCompaniaSeleccionada] = useState<CompaniaGD | null>(null);
+    // Estado de modales y selección
+    seleccionada,
+    modalNueva,
+    modalEditar,
+    modalEliminar,
 
-  /* ============================================================
-     🔹 Cargar compañías al montar
-  ============================================================ */
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        const data = await Companias.getAll();
-        setCompanias(data);
-      } catch (err) {
-        console.error("Error al obtener las compañías:", err);
-        setError("No se pudieron cargar las compañías registradas.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [Companias]);
+    // Setters directos
+    setModalNueva,
+    setModalEditar,
+    setModalEliminar,
 
-  /* ============================================================
-     🔹 Callbacks desde modales
-  ============================================================ */
-  const handleCompaniaCreada = (c: CompaniaGD) => {
-    setCompanias(prev => [...prev, c]);
-  };
+    // Callbacks de actualización de lista
+    agregar,
+    actualizar,
+    eliminar,
 
-  const handleCompaniaActualizada = (c: CompaniaGD) => {
-    setCompanias(prev =>
-      prev.map((x) => (x.Id === c.Id ? c : x))
-    );
-  };
+    // Acciones de fila (para abrir modales)
+    abrirEditar,
+    abrirEliminar,
+  } = useCompaniasPanel(Companias);
 
-  const handleCompaniaEliminada = (id: string) => {
-    setCompanias(prev => prev.filter(c => c.Id !== id));
-  };
-
-  /* ============================================================
-     🔹 Acciones de fila (editar / eliminar)
-  ============================================================ */
-  const abrirEditar = (c: CompaniaGD) => {
-    setCompaniaSeleccionada(c);
-    setModalEditarAbierto(true);
-  };
-
-  const abrirEliminar = (c: CompaniaGD) => {
-    setCompaniaSeleccionada(c);
-    setModalEliminarAbierto(true);
-  };
-
-  /* ============================================================
-     🔹 Render
-  ============================================================ */
+  // ============================================================
+  // 🔹 Render principal
+  // ============================================================
   return (
     <div className="companias-container">
-      {/* Header */}
+
+      {/* --------------------------------------------------------
+          HEADER DEL PANEL
+          -------------------------------------------------------- */}
       <header className="companias-header">
         <h2>Compañías registradas</h2>
 
+        {/* Botón para abrir modal de creación */}
         <button
           className="btn-nueva-compania"
-          onClick={() => setModalNuevaAbierto(true)}
+          onClick={() => setModalNueva(true)}
           disabled={loading}
         >
           {loading ? "Procesando..." : "+ Nueva Compañía"}
         </button>
       </header>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {/* --------------------------------------------------------
+          MENSAJE DE ERROR
+          -------------------------------------------------------- */}
+      {error && <p className="error-msg">{error}</p>}
 
-      {/* Tabla */}
+      {/* --------------------------------------------------------
+          ESTADO DE CARGA INICIAL
+          -------------------------------------------------------- */}
       {loading && companias.length === 0 ? (
         <p>Cargando compañías...</p>
       ) : (
+
+        /* --------------------------------------------------------
+            TABLA DE COMPAÑÍAS
+            -------------------------------------------------------- */
         <table className="companias-table">
           <thead>
             <tr>
@@ -112,35 +111,39 @@ export default function CompaniasPanel() {
               <th>Acciones</th>
             </tr>
           </thead>
+
           <tbody>
+            {/* Si no hay compañías */}
             {companias.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: "center", padding: "1rem" }}>
+                <td colSpan={5} className="empty-state">
                   No hay compañías registradas.
                 </td>
               </tr>
             ) : (
+              /* Render de filas */
               companias.map((c) => (
                 <tr key={c.Id}>
+                  {/* Nombre */}
                   <td>{c.Title}</td>
+
+                  {/* Administrador */}
                   <td>{c.AdministradorCom || "—"}</td>
+
+                  {/* Fecha creación formateada */}
+                  <td>{formatDate(c.FechaCreacion)}</td>
+
+                  {/* Estado visual con helper */}
                   <td>
-                    {c.FechaCreacion
-                      ? new Date(c.FechaCreacion).toLocaleDateString()
-                      : "—"}
+                    <EstadoChip activo={!!c.Activa} />
                   </td>
+
+                  {/* Acciones por fila */}
                   <td>
-                    <span className={`estado ${c.Activa ? "activo" : "inactivo"}`}>
-                      {c.Activa ? "Activa" : "Inactiva"}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      className="btn-accion"
-                      onClick={() => abrirEditar(c)}
-                    >
+                    <button className="btn-accion" onClick={() => abrirEditar(c)}>
                       Editar
                     </button>
+
                     <button
                       className="btn-accion btn-accion-eliminar"
                       onClick={() => abrirEliminar(c)}
@@ -155,32 +158,36 @@ export default function CompaniasPanel() {
         </table>
       )}
 
-      {/* Modal Nueva */}
+      {/* ============================================================
+          MODALES
+          ============================================================ */}
+
+      {/* ➕ NUEVA COMPAÑÍA */}
       <ModalNuevaCompania
-        abierto={modalNuevaAbierto}
-        onCerrar={() => setModalNuevaAbierto(false)}
-        onCreada={handleCompaniaCreada}
+        abierto={modalNueva}
+        onCerrar={() => setModalNueva(false)}
+        onCreada={agregar}
         CompaniasService={Companias}
       />
 
-      {/* Modal Editar */}
-      {companiaSeleccionada && (
+      {/* ✏ EDITAR */}
+      {seleccionada && (
         <ModalEditarCompania
-          abierto={modalEditarAbierto}
-          onCerrar={() => setModalEditarAbierto(false)}
-          compania={companiaSeleccionada}
-          onActualizada={handleCompaniaActualizada}
+          abierto={modalEditar}
+          onCerrar={() => setModalEditar(false)}
+          compania={seleccionada}
+          onActualizada={actualizar}
           CompaniasService={Companias}
         />
       )}
 
-      {/* Modal Eliminar */}
-      {companiaSeleccionada && (
+      {/* 🗑 ELIMINAR */}
+      {seleccionada && (
         <ModalEliminarCompania
-          abierto={modalEliminarAbierto}
-          onCerrar={() => setModalEliminarAbierto(false)}
-          compania={companiaSeleccionada}
-          onEliminada={handleCompaniaEliminada}
+          abierto={modalEliminar}
+          onCerrar={() => setModalEliminar(false)}
+          compania={seleccionada}
+          onEliminada={eliminar}
           CompaniasService={Companias}
         />
       )}

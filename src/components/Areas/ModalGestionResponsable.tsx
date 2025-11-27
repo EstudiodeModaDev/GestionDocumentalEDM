@@ -1,11 +1,25 @@
 // ============================================================
-// ModalGestionResponsable.tsx — versión con AUTOCOMPLETE nuevo
+// src/components/Areas/ModalGestionResponsable.tsx
+// ------------------------------------------------------------
+// Modal refactorizado con:
+//   ✔ Autocomplete centralizado (useUserAutocomplete)
+//   ✔ Lógica completa en useAreaResponsable
+//   ✔ Acciones sobre responsable anterior
+//        - Dejarlo SinAcceso
+//        - Reasignarlo a un área de la compañía
+//   ✔ Componente limpio: solo UI + binding
 // ============================================================
 
 import * as React from "react";
 import "./ModalGestionResponsable.css";
+
 import { useGraphServices } from "../../graph/GrapServicesContext";
-import type { RolUsuario } from "../../Models/UsuarioGD";
+
+// Hooks refactorizados
+import { useAreaResponsable } from "../../Funcionalidades/Usuarios/useAreaResponsable";
+import { useUserAutocomplete } from "../../Funcionalidades/Usuarios/useUserAutocomplete";
+
+import type { UsuarioBasic } from "../../Models/Commons";
 
 type ModalGestionResponsableProps = {
   isOpen: boolean;
@@ -19,8 +33,6 @@ type ModalGestionResponsableProps = {
   onSuccess?: () => void;
 };
 
-type UsuarioBasic = { nombre: string; correo: string };
-
 export default function ModalGestionResponsable({
   isOpen,
   onClose,
@@ -30,150 +42,112 @@ export default function ModalGestionResponsable({
   responsableActual,
   onSuccess,
 }: ModalGestionResponsableProps) {
-  
+  // ============================================================
+  // Servicios Graph (Usuarios, Áreas, Buscador Azure AD)
+  // ============================================================
   const { BuscarUsu, UsuariosGD, Areas } = useGraphServices();
 
-  // --- Estados del nuevo buscador ---
-  const [texto, setTexto] = React.useState("");
-  const [resultados, setResultados] = React.useState<UsuarioBasic[]>([]);
-  const [seleccionado, setSeleccionado] = React.useState<UsuarioBasic | null>(null);
-  const [loadingBuscador, setLoadingBuscador] = React.useState(false);
+  // ============================================================
+  // Hook principal: lógica completa de asignación de responsable
+  // ============================================================
+  const {
+    // selección nuevo responsable
+    seleccionado,
+    setSeleccionado,
 
-  const [error, setError] = React.useState<string | null>(null);
-  const [saving, setSaving] = React.useState(false);
+    // estado global
+    loading: saving,
+    error,
+    setError,
 
-  // cerrar dropdown si clickea afuera
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
+    // acciones sobre responsable anterior
+    accionAnterior,
+    setAccionAnterior,
 
-  /* ============================================================
-     RESET AL ABRIR EL MODAL
-  ============================================================ */
+    areasDisponibles,
+    areaReasignada,
+    setAreaReasignada,
+
+    guardarResponsable,
+    reset,
+  } = useAreaResponsable({
+    areaId,
+    areaName,
+    companiaName,
+    UsuariosGD,
+    Areas,
+    responsableActual,
+    onSuccess,
+    onClose,
+  });
+
+  // ============================================================
+  // Hook de autocompletado (Azure AD)
+  // ============================================================
+  const {
+    query: texto,
+    setQuery: setTexto,
+    results: resultados,
+    loading: loadingBuscador,
+    dropdownRef,
+    clearResults,
+    reset: resetAutocomplete,
+  } = useUserAutocomplete({ BuscarUsu });
+
+  // ============================================================
+  // Reset al abrir modal
+  // ============================================================
   React.useEffect(() => {
     if (isOpen) {
-      setTexto("");
-      setResultados([]);
-      setSeleccionado(null);
-      setError(null);
-      setSaving(false);
+      reset();
+      resetAutocomplete();
     }
   }, [isOpen]);
 
-  /* ============================================================
-     AUTOCOMPLETE con debounce
-  ============================================================ */
-  React.useEffect(() => {
-    if (!texto.trim()) {
-      setResultados([]);
-      return;
-    }
-
-    const delay = setTimeout(async () => {
-      try {
-        setLoadingBuscador(true);
-        const lista = await BuscarUsu.buscar(texto.trim());
-        setResultados(lista);
-      } finally {
-        setLoadingBuscador(false);
-      }
-    }, 350);
-
-    return () => clearTimeout(delay);
-  }, [texto, BuscarUsu]);
-
-  /* ============================================================
-     VALIDACIÓN
-  ============================================================ */
-  function validarRol(rol: RolUsuario, areaID?: string, compID?: string) {
-    if (rol === "AdministradorCom")
-      return "Este usuario es Administrador de una Compañía. No puede ser responsable de un área.";
-
-    if (rol === "AdministradorGeneral")
-      return "Un Administrador General no puede ser responsable de un área.";
-
-    if (rol === "ResponsableArea") {
-      if (areaID !== areaName || compID !== companiaName) {
-        return `Este usuario ya es responsable del área "${areaID}" en la compañía "${compID}".`;
-      }
-    }
-
-    return null;
-  }
-
-  /* ============================================================
-     GUARDAR RESPONSABLE
-  ============================================================ */
-  const handleGuardar = async () => {
-    setError(null);
-
-    if (!seleccionado) {
-      setError("Debes seleccionar un usuario.");
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      const correo = seleccionado.correo.toLowerCase();
-      const existente = await UsuariosGD.getByCorreo(correo);
-
-      if (existente) {
-        const motivo = validarRol(existente.Rol, existente.AreaID, existente.CompaniaID);
-        if (motivo) {
-          setError(motivo);
-          setSaving(false);
-          return;
-        }
-      }
-
-      // UPSERT del usuario responsable
-      await UsuariosGD.upsertByCorreo({
-        Nombre: seleccionado.nombre,
-        Correo: correo,
-        Rol: "ResponsableArea",
-        CompaniaID: companiaName,
-        AreaID: areaName,
-      });
-
-      // Actualizar en AreasGD
-      await Areas.setResponsable(areaId, correo);
-
-      if (onSuccess) onSuccess();
-      onClose();
-
-    } catch (err) {
-      console.error("❌ Error:", err);
-      setError("Ocurrió un error al asignar el responsable.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
+  // Si está cerrado, no renderiza
   if (!isOpen) return null;
 
-  /* ============================================================
-     RENDER
-  ============================================================ */
+  // ============================================================
+  // Seleccionar usuario del autocomplete
+  // ============================================================
+  function handleSelectUsuario(u: UsuarioBasic) {
+    setSeleccionado(u);
+    setTexto("");
+    clearResults();
+  }
+
+  // ============================================================
+  // Guardar responsable
+  // ============================================================
+  async function handleGuardarClick() {
+    await guardarResponsable();
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-
         {/* HEADER */}
         <div className="modal-header">
           <h3>Gestionar Responsable</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={onClose}>
+            ✕
+          </button>
         </div>
 
         {/* BODY */}
         <div className="modal-body">
-
+          {/* RESPONSABLE ACTUAL */}
           <h4>Responsable actual</h4>
           <p>{responsableActual || "— No hay responsable asignado —"}</p>
 
+          {/* NUEVO RESPONSABLE */}
           <h4 style={{ marginTop: "1rem" }}>Asignar nuevo responsable</h4>
 
+          {/* AUTOCOMPLETE */}
           <div className="autocomplete-container" ref={dropdownRef}>
-
-            {/* INPUT */}
             <input
               className="autocomplete-input"
               type="text"
@@ -182,18 +156,26 @@ export default function ModalGestionResponsable({
               onChange={(e) => {
                 setTexto(e.target.value);
                 setSeleccionado(null);
+                setError(null);
               }}
             />
 
-            {loadingBuscador && <div className="autocomplete-loading">Buscando...</div>}
+            {loadingBuscador && (
+              <div className="autocomplete-loading">Buscando...</div>
+            )}
 
-            {/* CHIP */}
+            {/* CHIP del usuario seleccionado */}
             {seleccionado && (
               <div className="selected-admin-chip">
                 <div className="selected-admin-texts">
-                  <div className="selected-admin-name">{seleccionado.nombre}</div>
-                  <div className="selected-admin-email">{seleccionado.correo}</div>
+                  <div className="selected-admin-name">
+                    {seleccionado.nombre}
+                  </div>
+                  <div className="selected-admin-email">
+                    {seleccionado.correo}
+                  </div>
                 </div>
+
                 <button
                   className="selected-admin-remove"
                   onClick={() => {
@@ -206,18 +188,14 @@ export default function ModalGestionResponsable({
               </div>
             )}
 
-            {/* DROPDOWN */}
+            {/* DROPDOWN DE RESULTADOS */}
             {resultados.length > 0 && !seleccionado && (
               <div className="autocomplete-dropdown">
                 {resultados.map((u) => (
                   <div
                     key={u.correo}
                     className="autocomplete-item"
-                    onClick={() => {
-                      setSeleccionado(u);
-                      setTexto("");
-                      setResultados([]);
-                    }}
+                    onClick={() => handleSelectUsuario(u)}
                   >
                     <div className="autocomplete-item-name">{u.nombre}</div>
                     <div className="autocomplete-item-email">{u.correo}</div>
@@ -227,23 +205,70 @@ export default function ModalGestionResponsable({
             )}
           </div>
 
+          {/* ======================================================
+   OPCIONES SOBRE RESPONSABLE ANTERIOR
+====================================================== */}
+{responsableActual && seleccionado && (
+  <div className="responsable-acciones-block">
+    <h5>¿Qué hacer con el responsable anterior?</h5>
+
+    {/* Dropdown principal */}
+    <select
+      className="modal-select"
+      value={accionAnterior}
+      onChange={(e) =>
+        setAccionAnterior(e.target.value as "sinAcceso" | "reasignar")
+      }
+    >
+      <option value="sinAcceso">Dejarlo sin acceso</option>
+      <option value="reasignar">Asignarlo como Usuario de Área</option>
+    </select>
+
+    {/* ======================================================
+       SI VA A REASIGNAR → MOSTRAR SEGUNDO DROPDOWN
+    ====================================================== */}
+    {accionAnterior === "reasignar" && (
+      <>
+        <label className="modal-label-inline">Seleccionar área</label>
+
+        <select
+          className="modal-select"
+          value={areaReasignada}
+          onChange={(e) => setAreaReasignada(e.target.value)}
+        >
+          <option value="">— Seleccionar área —</option>
+
+          {areasDisponibles.map((a) => (
+            <option key={a.Id} value={a.Title}>
+              {a.Title}
+            </option>
+          ))}
+        </select>
+      </>
+    )}
+  </div>
+)}
+
+            
+
+          {/* ERROR */}
           {error && <p className="modal-error">{error}</p>}
         </div>
 
         {/* FOOTER */}
         <div className="modal-footer">
-          <button className="btn-secundario" onClick={onClose}>
+          <button className="btn-secundario" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
+
           <button
             className="btn-primario"
             disabled={!seleccionado || saving}
-            onClick={handleGuardar}
+            onClick={handleGuardarClick}
           >
             {saving ? "Guardando..." : "Guardar responsable"}
           </button>
         </div>
-
       </div>
     </div>
   );

@@ -1,9 +1,24 @@
-import { useEffect, useState } from "react";
+// ============================================================
+// src/components/Companias/ModalEliminarCompania.tsx
+// ------------------------------------------------------------
+// Modal para ELIMINAR una compañía.
+//
+// Este componente NO contiene lógica de negocio.
+//   Toda la lógica está en:
+//     👉 useCompaniasActions({ modo: "eliminar", ... })
+//
+// El modal solo:
+//   - muestra los datos (usuarios/áreas asociadas)
+//   - confirma el borrado
+//   - renderiza la UI con el estado que le entrega el hook
+// ============================================================
+
 import "./ModalEliminarCompania.css";
 import type { CompaniaGD } from "../../Models/CompaniaGD";
-import type { UsuarioGD } from "../../Models/UsuarioGD";
 import { useGraphServices } from "../../graph/GrapServicesContext";
-import { useNav } from "../Context/NavContext";  // 👈 NAV CONTEXT
+import { useNav } from "../Context/NavContext";
+
+import { useCompaniasActions } from "../../Funcionalidades/Companias/useCompaniasActions";
 
 interface Props {
   abierto: boolean;
@@ -20,144 +35,102 @@ export default function ModalEliminarCompania({
   onEliminada,
   CompaniasService,
 }: Props) {
+  
+  // ============================================================
+  // 🔗 Servicios (Graph) y trigger del NAV
+  // ============================================================
   const { UsuariosGD, Areas } = useGraphServices();
-  const { triggerRefresh } = useNav(); // 👈 Para refrescar el NAV
+  const { triggerRefresh } = useNav();
 
-  const [loading, setLoading] = useState(false);
-  const [usuariosAsociados, setUsuariosAsociados] = useState<UsuarioGD[]>([]);
-  const [areasAsociadas, setAreasAsociadas] = useState<any[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [segundaConfirmacion, setSegundaConfirmacion] = useState(false);
+  // ============================================================
+  // 🧩 Hook UNIFICADO para manejar la eliminación
+  //   - carga usuarios asociados
+  //   - carga áreas asociadas
+  //   - maneja doble confirmación
+  //   - resetea roles de usuarios
+  //   - elimina carpeta + registro en SharePoint
+  //   - invoca onEliminada
+  // ============================================================
+  const {
+    loading,              // estado de carga mientras elimina
+    usuariosAsociados,    // usuarios vinculados a la compañía
+    areasAsociadas,       // áreas vinculadas
+    error,                // mensajes de error o advertencia
+    segundaConfirmacion,  // indica si es un segundo intento
+    eliminarCompania,     // acción principal de eliminación
+  } = useCompaniasActions({
+    modo: "eliminar",
+    compania,
+    UsuariosGD,
+    Areas,
+    CompaniasService,
+    onEliminada,
+    onCerrar,
+    triggerRefresh,
+  });
 
-  const tituloSeguro = compania.Title ?? "";
-
-  /*===============================================================
-    Cargar usuarios/áreas asociadas
-  ===============================================================*/
-  useEffect(() => {
-    if (!abierto) return;
-
-    (async () => {
-      try {
-        setError(null);
-        setSegundaConfirmacion(false);
-
-        const usuarios = await UsuariosGD.getAll();
-        setUsuariosAsociados(
-          usuarios.filter((u) => u.CompaniaID === tituloSeguro)
-        );
-
-        const areas = await Areas.getAll();
-        setAreasAsociadas(
-          (areas ?? []).filter((a: any) => a.NombreCompania === tituloSeguro)
-        );
-      } catch (err) {
-        console.error("❌ Error cargando info de compañía:", err);
-        setError("Error obteniendo información asociada.");
-      }
-    })();
-  }, [abierto, UsuariosGD, Areas, tituloSeguro]);
-
-  /*===============================================================
-    Eliminar compañía
-  ===============================================================*/
-  const handleEliminar = async () => {
-    setError(null);
-
-    // 1️⃣ No se permite eliminar si hay áreas
-    if (areasAsociadas.length > 0) {
-      setError(
-        `No puedes eliminar la compañía porque tiene ${areasAsociadas.length} área(s) asociada(s).`
-      );
-      return;
-    }
-
-    // 2️⃣ Confirmación adicional si tiene usuarios
-    if (usuariosAsociados.length > 0 && !segundaConfirmacion) {
-      setSegundaConfirmacion(true);
-      setError(
-        `Esta compañía tiene ${usuariosAsociados.length} usuario(s) asociado(s). 
-Si confirmas, quedarán con Rol="SinAcceso" y sin compañía. 
-Presiona "Eliminar" otra vez para continuar.`
-      );
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // 3️⃣ Resetear usuarios asociados
-      for (const u of usuariosAsociados) {
-        await UsuariosGD.upsertByCorreo({
-          Nombre: u.Title || u.Correo,
-          Correo: u.Correo,
-          Rol: "SinAcceso",
-          CompaniaID: undefined,
-          AreaID: undefined,
-        });
-      }
-
-      // 4️⃣ Eliminar carpeta + registro
-      await CompaniasService.deleteWithFolder(compania.Id ?? "", tituloSeguro);
-
-      // 5️⃣ Avisar al padre
-      if (compania.Id) {
-        onEliminada(compania.Id);
-      }
-
-      // 6️⃣ 🔥 REFRESCAR NAVBAR PARA QUE SE ACTUALICE EN TIEMPO REAL
-      triggerRefresh();
-
-      // 7️⃣ Cerrar modal
-      onCerrar();
-
-    } catch (err) {
-      console.error("❌ Error eliminando compañía:", err);
-      setError("Error al eliminar la compañía.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Si el modal está cerrado no se renderiza nada
   if (!abierto) return null;
 
+  // ============================================================
+  // 🖼️ Render del modal
+  // ============================================================
   return (
     <div className="modal-backdrop">
       <div className="modal-card">
+
+        {/* HEADER */}
         <div className="modal-header">
           <h2>Eliminar Compañía</h2>
           <button className="close-btn" onClick={onCerrar}>✕</button>
         </div>
 
+        {/* BODY */}
         <div className="modal-body">
           <p>
-            ¿Deseas eliminar la compañía <strong>{tituloSeguro}</strong>?
+            ¿Deseas eliminar la compañía{" "}
+            <strong>{compania.Title}</strong>?
           </p>
 
+          {/* Información asociada */}
           <ul style={{ marginTop: ".5rem" }}>
-            <li>Usuarios asociados: <strong>{usuariosAsociados.length}</strong></li>
-            <li>Áreas asociadas: <strong>{areasAsociadas.length}</strong></li>
+            <li>
+              Usuarios asociados:{" "}
+              <strong>{usuariosAsociados?.length}</strong>
+            </li>
+            <li>
+              Áreas asociadas:{" "}
+              <strong>{areasAsociadas?.length}</strong>
+            </li>
           </ul>
 
+          {/* Mensajes de error o advertencia */}
           {error && <p className="modal-error">{error}</p>}
         </div>
 
+        {/* FOOTER */}
         <div className="modal-footer">
-          <button onClick={onCerrar} className="btn-cancelar" disabled={loading}>
+          <button
+            className="btn-cancelar"
+            onClick={onCerrar}
+            disabled={loading}
+          >
             Cancelar
           </button>
+
           <button
-            onClick={handleEliminar}
-            className="btn-crear btn-accion-eliminar"
+            className="btn-accion-eliminar"
+            onClick={eliminarCompania}
             disabled={loading}
           >
             {loading
-              ? "Eliminando..."
+              ? "Eliminando..."               // 1️⃣ Eliminación en proceso
               : segundaConfirmacion
-              ? "Eliminar definitivamente"
-              : "Eliminar"}
+              ? "Eliminar definitivamente"    // 2️⃣ Segundo clic: confirmación final
+              : "Eliminar"}                
           </button>
         </div>
+
       </div>
     </div>
   );

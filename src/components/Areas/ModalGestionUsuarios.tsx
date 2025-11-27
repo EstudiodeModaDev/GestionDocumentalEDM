@@ -1,28 +1,32 @@
 // ============================================================
-// ModalGestionUsuarios.tsx — versión MULTI-USUARIOS con AUTOCOMPLETE
+// ModalGestionUsuarios.tsx — versión final, completa y funcional
 // ------------------------------------------------------------
-// ✔ Agregar múltiples usuarios (chips)
-// ✔ Chips SIEMPRE abajo del input
-// ✔ Dropdown SIEMPRE arriba del input (absolute)
-// ✔ Input nunca se mueve
-// ✔ Validación de roles
-// ✔ Edición de compañía/área
-// ✔ Eliminación de usuarios
-// ✔ Botón “Agregar usuarios” movido al FOOTER
-// ✔ Texto dinámico según cantidad seleccionada
+// ✔ Lógica de negocio completamente en useGestionUsuarios()
+// ✔ Autocomplete con chips para agregar múltiples usuarios
+// ✔ Botón “Gestionar” por usuario → despliega bloque inline
+// ✔ Cambiar de área dentro de la compañía
+// ✔ Eliminar usuario (ModalConfirmacion)
+// ✔ Mantiene UX idéntico al ModalGestionResponsable
+// ✔ Completamente comentado para fácil mantenimiento
 // ============================================================
 
 import * as React from "react";
 import "./ModalGestionUsuarios.css";
+
 import { useGraphServices } from "../../graph/GrapServicesContext";
 
+// Hooks
+import { useGestionUsuarios } from "../../Funcionalidades/Usuarios/useGestionUsuarios";
+import { useUserAutocomplete } from "../../Funcionalidades/Usuarios/useUserAutocomplete";
+
+// Modelos
+import type { UsuarioBasic } from "../../Models/Commons";
 import type { UsuarioGD } from "../../Models/UsuarioGD";
-import type { CompaniaGD } from "../../Models/CompaniaGD";
-import type { AreaGD } from "../../Models/Area";
 
-type UsuarioBasic = { nombre: string; correo: string };
+// Modal de confirmación
+import ModalConfirmacion from "../shared/ModalConfirmacion";
 
-type ModalGestionUsuariosProps = {
+type Props = {
   isOpen: boolean;
   onClose: () => void;
   areaName: string;
@@ -36,256 +40,114 @@ export default function ModalGestionUsuarios({
   areaName,
   companiaName,
   onSuccess,
-}: ModalGestionUsuariosProps) {
-
+}: Props) {
   const { BuscarUsu, UsuariosGD, Companias, Areas } = useGraphServices();
 
   // ============================================================
-  // ESTADOS PRINCIPALES
+  // Estado del modal de confirmación ELIMINAR
   // ============================================================
-
-  // Usuarios existentes en el área actual
-  const [usuariosArea, setUsuariosArea] = React.useState<UsuarioGD[]>([]);
-  const [loadingLista, setLoadingLista] = React.useState(false);
-
-  // Catálogos (Compañías y Áreas)
-  const [companias, setCompanias] = React.useState<CompaniaGD[]>([]);
-  const [areas, setAreas] = React.useState<AreaGD[]>([]);
-
-  // Autocomplete
-  const [texto, setTexto] = React.useState("");
-  const [resultados, setResultados] = React.useState<UsuarioBasic[]>([]);
-  const [seleccionados, setSeleccionados] = React.useState<UsuarioBasic[]>([]);
-  const [loadingBuscador, setLoadingBuscador] = React.useState(false);
-
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
-
-  // Edición de ubicación del usuario
-  const [editingUsuario, setEditingUsuario] = React.useState<UsuarioGD | null>(null);
-  const [editCompania, setEditCompania] = React.useState("");
-  const [editArea, setEditArea] = React.useState("");
-
-  // Mensajes y estado de guardado
-  const [error, setError] = React.useState<string | null>(null);
-  const [info, setInfo] = React.useState<string | null>(null);
-  const [saving, setSaving] = React.useState(false);
-
+  const [confirm, setConfirm] = React.useState<{
+    open: boolean;
+    user?: UsuarioGD;
+  }>({ open: false });
 
   // ============================================================
-  // CARGAR USUARIOS + CATÁLOGOS AL ABRIR EL MODAL
+  // Hook principal de lógica (super limpio)
   // ============================================================
+  const {
+    usuariosArea,
+    loadingLista,
 
-  const loadData = React.useCallback(async () => {
-    try {
-      setLoadingLista(true);
+    // (solo usamos areasFiltradas)
+    areasFiltradas,
 
-      const [allUsers, allComp, allAreas] = await Promise.all([
-        UsuariosGD.getAll(),
-        Companias.getAll(),
-        Areas.getAll(),
-      ]);
+    // edición
+    editingUsuario,
+    startEditarUsuario,
+    setEditCompania,
+    editArea,
+    setEditArea,
+    guardarEdicion,
 
-      // Filtrar solo los usuarios pertenecientes a esta compañía/área
-      const filtrados = allUsers.filter((u) =>
-        u.Rol === "UsuarioArea" &&
-        (u.CompaniaID ?? "").toLowerCase() === companiaName.toLowerCase() &&
-        (u.AreaID ?? "").toLowerCase() === areaName.toLowerCase()
-      );
+    // agregar usuarios
+    seleccionados,
+    addSeleccionado,
+    removeSeleccionado,
+    agregarUsuarios,
+    agregarLabel,
 
-      setUsuariosArea(filtrados);
-      setCompanias(allComp);
-      setAreas(allAreas);
+    // estado global
+    error,
+    setError,
+    info,
+    saving,
 
-    } catch (err) {
-      setError("No se pudo cargar usuarios del área.");
-    } finally {
-      setLoadingLista(false);
-    }
+    // acciones
+    eliminarUsuario,
 
-  }, [UsuariosGD, Companias, Areas, areaName, companiaName]);
+    // cerrar modal respetando saving
+    handleClose,
+  } = useGestionUsuarios({
+    isOpen,
+    areaName,
+    companiaName,
+    UsuariosGD,
+    Companias,
+    Areas,
+    onSuccess,
+    onClose,
+  });
 
+  // ============================================================
+  // AUTOCOMPLETE — agregar usuarios
+  // ============================================================
+  const {
+    query: texto,
+    setQuery: setTexto,
+    results: resultados,
+    loading: loadingBuscador,
+    dropdownRef,
+    clearResults,
+    reset: resetAutocomplete,
+  } = useUserAutocomplete({ BuscarUsu });
 
-  // Reset al abrir el modal
+  // Reset del autocomplete al abrir modal
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (isOpen) resetAutocomplete();
+  }, [isOpen]);
 
+  // Maneja selección desde autocompletado
+  function handleSelect(u: UsuarioBasic) {
+    addSeleccionado(u);
     setTexto("");
-    setResultados([]);
-    setSeleccionados([]);
-    setEditingUsuario(null);
-    setError(null);
-    setInfo(null);
-
-    void loadData();
-  }, [isOpen, loadData]);
-
+    clearResults();
+  }
 
   // ============================================================
-  // AUTOCOMPLETE (con debounce)
+  // Si el modal está cerrado → no se renderiza
   // ============================================================
-
-  React.useEffect(() => {
-    if (!texto.trim()) {
-      setResultados([]);
-      return;
-    }
-
-    const delay = setTimeout(async () => {
-      try {
-        setLoadingBuscador(true);
-        const lista = await BuscarUsu.buscar(texto.trim());
-        setResultados(lista);
-      } finally {
-        setLoadingBuscador(false);
-      }
-    }, 350);
-
-    return () => clearTimeout(delay);
-  }, [texto, BuscarUsu]);
-
-
-  // ============================================================
-  // AGREGAR MULTI-USUARIOS
-  // ============================================================
-
-  const handleAgregar = async () => {
-    if (seleccionados.length === 0) return; // Nunca debería pasar
-
-    try {
-      setSaving(true);
-
-      for (const s of seleccionados) {
-        const correo = s.correo.toLowerCase();
-        const existente = await UsuariosGD.getByCorreo(correo);
-
-        // Validar roles prohibidos
-        if (existente && existente.Rol !== "UsuarioArea") {
-          setError(`El usuario ${s.nombre} ya tiene rol "${existente.Rol}".`);
-          continue;
-        }
-
-        // Upsert
-        await UsuariosGD.upsertByCorreo({
-          Nombre: s.nombre,
-          Correo: correo,
-          Rol: "UsuarioArea",
-          CompaniaID: companiaName,
-          AreaID: areaName,
-        });
-      }
-
-      setSeleccionados([]);
-      setInfo("Usuarios agregados correctamente.");
-
-      await loadData();
-      if (onSuccess) onSuccess();
-
-    } catch {
-      setError("Error al agregar usuarios.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-
-  // Texto dinámico para el botón del footer
-  const agregarLabel =
-    seleccionados.length === 0
-      ? "Agregar usuarios"
-      : seleccionados.length === 1
-      ? "Agregar usuario"
-      : `Agregar ${seleccionados.length} usuarios`;
-
-
-  // ============================================================
-  // EDICIÓN DE UBICACIÓN
-  // ============================================================
-
-  const areasFiltradas = React.useMemo(() => {
-    if (!editCompania) return areas;
-    return areas.filter(
-      (a) => (a.NombreCompania ?? "").toLowerCase() === editCompania.toLowerCase()
-    );
-  }, [areas, editCompania]);
-
-  const handleGuardarEdicion = async () => {
-    if (!editingUsuario) return;
-
-    if (!editCompania || !editArea) {
-      setError("Debes seleccionar compañía y área.");
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      await UsuariosGD.upsertByCorreo({
-        Nombre: editingUsuario.Title,
-        Correo: editingUsuario.Correo,
-        Rol: editingUsuario.Rol,
-        CompaniaID: editCompania,
-        AreaID: editArea,
-      });
-
-      setEditingUsuario(null);
-      await loadData();
-      if (onSuccess) onSuccess();
-
-    } finally {
-      setSaving(false);
-    }
-  };
-
-
-  // ============================================================
-  // ELIMINAR USUARIO
-  // ============================================================
-
-  const handleEliminar = async (u: UsuarioGD) => {
-    if (!window.confirm(`¿Eliminar usuario ${u.Title}?`)) return;
-
-    try {
-      setSaving(true);
-      await UsuariosGD.deleteByCorreo(u.Correo);
-      await loadData();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-
-  // ============================================================
-  // CERRAR MODAL
-  // ============================================================
-
-  const handleClose = () => {
-    if (!saving) onClose();
-  };
-
   if (!isOpen) return null;
 
-
   // ============================================================
-  // ========================= UI DEL MODAL ======================
+  // RENDER DEL MODAL
   // ============================================================
-
   return (
     <div className="modal-backdrop" onClick={handleClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-
         {/* ===================================================== */}
         {/* HEADER */}
         {/* ===================================================== */}
         <div className="modal-header">
           <h3>Gestionar Usuarios</h3>
-          <button className="modal-close" onClick={handleClose}>✕</button>
+          <button className="modal-close" onClick={handleClose}>
+            ✕
+          </button>
         </div>
 
         {/* ===================================================== */}
         {/* BODY */}
         {/* ===================================================== */}
         <div className="modal-body">
-
           {error && <p className="modal-error">{error}</p>}
           {info && <p className="modal-info">{info}</p>}
 
@@ -303,77 +165,90 @@ export default function ModalGestionUsuarios({
               <ul className="usuariosArea-lista">
                 {usuariosArea.map((u) => (
                   <li key={u.ID} className="usuariosArea-item">
-
                     <div className="usuariosArea-main">
                       <span>{u.Title}</span>
                       <span>{u.Correo}</span>
-                      <span>{u.CompaniaID} / {u.AreaID}</span>
+                      <span>
+                        {u.CompaniaID} / {u.AreaID}
+                      </span>
                     </div>
 
+                    {/* ===================================================== */}
+                    {/* BOTÓN GESTIONAR */}
+                    {/* ===================================================== */}
                     <div className="usuariosArea-actions">
                       <button
+                        className="btn-gestionar"
                         onClick={() => {
-                          setEditingUsuario(u);
-                          setEditCompania(u.CompaniaID ?? "");
-                          setEditArea(u.AreaID ?? "");
+                          startEditarUsuario(u);
+                          setEditCompania(companiaName); // regla: no cambiar compañía
+                          setError(null);
                         }}
                       >
-                        Editar
-                      </button>
-
-                      <button className="btn-danger" onClick={() => handleEliminar(u)}>
-                        Eliminar
+                        Gestionar
                       </button>
                     </div>
 
+                    {/* ===================================================== */}
+                    {/* BLOQUE INLINE DE GESTIÓN */}
+                    {/* ===================================================== */}
+                    {editingUsuario && editingUsuario.ID === u.ID && (
+                      <div className="gestionar-inline-panel">
+                        <p className="gestionar-title">
+                          Gestionar usuario:{" "}
+                          <strong>{editingUsuario.Title}</strong>
+                        </p>
+                        <p className="gestionar-subtitle">
+                          Compañía: <strong>{companiaName}</strong>
+                        </p>
+
+                        {/* Select de área */}
+                        <label className="modal-label">
+                          Cambiar a área:
+                          <select
+                            className="modal-select"
+                            value={editArea}
+                            onChange={(e) => setEditArea(e.target.value)}
+                          >
+                            <option value="">Selecciona área</option>
+                            {areasFiltradas.map((a) => (
+                              <option key={a.Id} value={a.Title}>
+                                {a.Title}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        {/* Botones */}
+                        <div className="gestionar-inline-actions">
+                          <button
+                            className="btn-primario"
+                            onClick={guardarEdicion}
+                            disabled={saving}
+                          >
+                            {saving ? "Guardando..." : "Guardar cambios"}
+                          </button>
+
+                          <button
+                            className="btn-danger"
+                            onClick={() =>
+                              setConfirm({ open: true, user: editingUsuario })
+                            }
+                            disabled={saving}
+                          >
+                            Eliminar usuario
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </section>
 
-
           {/* ===================================================== */}
-          {/* EDICIÓN DE UBICACIÓN */}
-          {/* ===================================================== */}
-          {editingUsuario && (
-            <section className="modal-section">
-              <h4>Editar ubicación</h4>
-
-              <p>{editingUsuario.Title} ({editingUsuario.Correo})</p>
-
-              <select
-                value={editCompania}
-                onChange={(e) => {
-                  setEditCompania(e.target.value);
-                  setEditArea("");
-                }}
-              >
-                <option value="">Selecciona compañía</option>
-                {companias.map((c) => (
-                  <option key={c.Id} value={c.Title}>{c.Title}</option>
-                ))}
-              </select>
-
-              <select
-                value={editArea}
-                onChange={(e) => setEditArea(e.target.value)}
-              >
-                <option value="">Selecciona área</option>
-                {areasFiltradas.map((a) => (
-                  <option key={a.Id} value={a.Title}>{a.Title}</option>
-                ))}
-              </select>
-
-              <button onClick={handleGuardarEdicion} disabled={saving}>
-                {saving ? "Guardando..." : "Guardar cambios"}
-              </button>
-            </section>
-          )}
-
-
-          {/* ===================================================== */}
-          {/* AUTOCOMPLETE + CHIPS */}
+          {/* AUTOCOMPLETE + CHIPS PARA AGREGAR */}
           {/* ===================================================== */}
           <section className="modal-section">
             <h4>Agregar usuarios</h4>
@@ -381,13 +256,17 @@ export default function ModalGestionUsuarios({
             <div className="autocomplete-container" ref={dropdownRef}>
               <input
                 className="autocomplete-input"
-                type="text"
-                placeholder="Buscar usuario..."
                 value={texto}
-                onChange={(e) => setTexto(e.target.value)}
+                onChange={(e) => {
+                  setTexto(e.target.value);
+                  setError(null);
+                }}
+                placeholder="Buscar usuario..."
               />
 
-              {loadingBuscador && <div className="autocomplete-loading">Buscando...</div>}
+              {loadingBuscador && (
+                <div className="autocomplete-loading">Buscando...</div>
+              )}
 
               {resultados.length > 0 && (
                 <div className="autocomplete-dropdown">
@@ -395,13 +274,7 @@ export default function ModalGestionUsuarios({
                     <div
                       key={u.correo}
                       className="autocomplete-item"
-                      onClick={() => {
-                        if (!seleccionados.some((s) => s.correo === u.correo)) {
-                          setSeleccionados([...seleccionados, u]);
-                        }
-                        setTexto("");
-                        setResultados([]);
-                      }}
+                      onClick={() => handleSelect(u)}
                     >
                       <div className="autocomplete-item-name">{u.nombre}</div>
                       <div className="autocomplete-item-email">{u.correo}</div>
@@ -411,11 +284,11 @@ export default function ModalGestionUsuarios({
               )}
             </div>
 
+            {/* Chips resultados */}
             {seleccionados.length > 0 && (
               <div className="chips-wrapper">
                 {seleccionados.map((s) => (
                   <div key={s.correo} className="selected-admin-chip">
-
                     <div className="selected-admin-texts">
                       <div className="selected-admin-name">{s.nombre}</div>
                       <div className="selected-admin-email">{s.correo}</div>
@@ -423,44 +296,57 @@ export default function ModalGestionUsuarios({
 
                     <button
                       className="selected-admin-remove"
-                      onClick={() =>
-                        setSeleccionados(seleccionados.filter((x) => x.correo !== s.correo))
-                      }
+                      onClick={() => removeSeleccionado(s.correo)}
                     >
                       Quitar
                     </button>
-
                   </div>
                 ))}
               </div>
             )}
-
           </section>
-
         </div>
 
         {/* ===================================================== */}
         {/* FOOTER */}
         {/* ===================================================== */}
         <div className="modal-footer">
-
-          {/* Botón Cerrar */}
           <button className="btn-secundario" onClick={handleClose}>
             Cerrar
           </button>
 
-          {/* Botón Agregar usuarios (dinámico) */}
           <button
             className="btn-primario"
             disabled={seleccionados.length === 0 || saving}
-            onClick={handleAgregar}
+            onClick={agregarUsuarios}
           >
             {saving ? "Guardando..." : agregarLabel}
           </button>
-
         </div>
-
       </div>
+
+      {/* ======================================================== */}
+      {/* MODAL CONFIRMACIÓN ELIMINAR */}
+      {/* ======================================================== */}
+      <ModalConfirmacion
+        open={confirm.open}
+        title="Eliminar usuario"
+        message={
+          confirm.user
+            ? `¿Deseas eliminar el usuario "${confirm.user.Title}"? Esta acción no se puede deshacer.`
+            : "¿Eliminar usuario?"
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        onCancel={() => setConfirm({ open: false })}
+        onConfirm={async () => {
+          if (confirm.user) {
+            await eliminarUsuario(confirm.user);
+            onSuccess?.();
+          }
+          setConfirm({ open: false });
+        }}
+      />
     </div>
   );
 }

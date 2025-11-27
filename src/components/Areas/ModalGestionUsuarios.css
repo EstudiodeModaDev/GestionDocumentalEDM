@@ -154,8 +154,7 @@
   padding: 0.8rem 1rem;
   border-bottom: 1px solid var(--color-border-light);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   transition: 0.2s;
 }
 .usuariosArea-item:last-child {
@@ -188,51 +187,114 @@
 /* Acciones */
 .usuariosArea-actions {
   display: flex;
-  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
-.usuariosArea-actions button {
-  padding: 0.4rem 0.75rem;
-  border-radius: var(--radius-sm);
+.btn-gestionar {
+  background: var(--primary);
+  color: #fff;
   border: none;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
   cursor: pointer;
-  font-size: 0.82rem;
-  transition: 0.2s;
+  transition: background 0.2s ease;
 }
 
-.usuariosArea-actions button:first-child {
+.btn-gestionar:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-gestionar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================================================================
+   BLOQUE INLINE DE GESTIÓN
+   ========================================================================= */
+
+.gestionar-inline-panel {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.gestionar-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.gestionar-subtitle {
+  font-size: 0.85rem;
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.modal-label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.modal-select {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+
+.modal-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+}
+
+.gestionar-inline-actions {
+  display: flex;
+  gap: 0.55rem;
+  margin-top: 0.4rem;
+}
+
+.btn-primario {
   background: var(--primary);
   color: white;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: 0.2s;
 }
-.usuariosArea-actions button:first-child:hover {
+.btn-primario:hover:not(:disabled) {
   background: var(--primary-hover);
+}
+.btn-primario:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-danger {
   background: var(--danger);
   color: white;
-}
-.btn-danger:hover {
-  background: var(--danger-hover);
-}
-
-/* =========================================================================
-   EDICIÓN DE UBICACIÓN
-   ========================================================================= */
-
-select {
-  width: 100%;
-  padding: 0.55rem 0.7rem;
+  padding: 0.55rem 1rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-  font-size: 0.95rem;
-  margin: 0.4rem 0;
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
   transition: 0.2s;
 }
-
-select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-hover);
 }
 
 /* =========================================================================
@@ -311,7 +373,6 @@ select:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.8rem;
 }
 
 .selected-admin-texts {
@@ -368,22 +429,4 @@ select:focus {
 }
 .btn-secundario:hover {
   background: #e5e7eb;
-}
-
-.btn-primario {
-  background: var(--primary);
-  color: white;
-  padding: 0.55rem 1rem;
-  border-radius: var(--radius-sm);
-  border: none;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: 0.2s;
-}
-.btn-primario:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-.btn-primario:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }

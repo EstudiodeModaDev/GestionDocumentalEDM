@@ -259,3 +259,68 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* =========================================================================
+   DROPDOWNS — ACCIONES SOBRE RESPONSABLE ANTERIOR
+   ========================================================================= */
+
+/* Estilos base del dropdown (ya coincidían con select global) */
+.modal-select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: 0.95rem;
+  margin: 0.45rem 0;
+  background: var(--color-bg);
+  transition: 0.2s;
+  cursor: pointer;
+}
+
+.modal-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+  outline: none;
+}
+
+/* Contenedor del conjunto de dropdowns */
+.responsable-acciones-block {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  background: #f9fafb;
+  border: 1px solid var(--color-border-light);
+}
+
+/* Título pequeño dentro del bloque */
+.responsable-acciones-block h5 {
+  margin: 0 0 0.55rem 0;
+  font-size: 0.93rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Label del segundo dropdown */
+.modal-label-inline {
+  font-size: 0.87rem;
+  font-weight: 500;
+  margin-bottom: 0.35rem;
+  color: var(--color-muted);
+  display: block;
+}
+
+/* Ajustes para que el dropdown no pierda estilo junto al autocomplete */
+.modal-select + .modal-select {
+  margin-top: 0.4rem;
+}
+
+/* Opción deshabilitada */
+.modal-select option[disabled] {
+  color: var(--color-muted);
+}
+
+/* Hover dentro del select (solo para navegadores que soportan) */
+@supports selector(option:hover) {
+  .modal-select option:hover {
+    background: var(--color-hover);
+  }
+}

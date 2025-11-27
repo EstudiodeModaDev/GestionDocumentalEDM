@@ -10,7 +10,7 @@ import "./App.css";
 // Providers
 import { AuthProvider, useAuth } from "./auth/authContext";
 import { GraphServicesProvider, useGraphServices } from "./graph/GrapServicesContext";
-import { useUserRoleFromSP } from "./Funcionalidades/useUserRoleFromSP";
+import { useUserRoleFromSP } from "./Funcionalidades/Usuarios/useUserRoleFromSP";
 import { NavProvider, useNav } from "./components/Context/NavContext";
 
 // Componentes base
@@ -26,6 +26,7 @@ import fileIcon from "./assets/file.svg";
 import companyIcon from "./assets/company.svg";
 
 import type { RolUsuario } from "./Models/UsuarioGD";
+
 type Role = RolUsuario;
 
 /* ============================================================

@@ -1,0 +1,80 @@
+/* =======================================================================
+   ModalConfirmacion.css
+   Modal genérico para confirmaciones (Eliminar, advertencias, etc.)
+   ======================================================================= */
+
+.modal-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2500;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.modal-confirm-card {
+  background: white;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 12px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.18);
+  padding: 1.4rem;
+  animation: zoomIn 0.18s ease-out;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.modal-confirm-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: .75rem;
+  color: #111827;
+}
+
+.modal-confirm-message {
+  font-size: 0.95rem;
+  color: #374151;
+  margin-bottom: 1.4rem;
+}
+
+.modal-confirm-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: .75rem;
+}
+
+.btn-cancel {
+  padding: 0.55rem 1rem;
+  border-radius: 7px;
+  border: 1px solid #d1d5db;
+  background: #f3f4f6;
+  cursor: pointer;
+}
+
+.btn-cancel:hover {
+  background: #e5e7eb;
+}
+
+.btn-confirm {
+  padding: 0.55rem 1rem;
+  border-radius: 7px;
+  border: none;
+  background: #dc2626;
+  color: white;
+  cursor: pointer;
+}
+
+.btn-confirm:hover {
+  background: #b91c1c;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes zoomIn {
+  from { transform: scale(0.96); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}

@@ -1,11 +1,11 @@
 // ============================================================
 // src/components/context/NavContext.tsx
-// Contexto global para navegación del sidebar
-// Soluciona:
-//  ✔ seleccionar nodo desde cualquier vista
-//  ✔ expandir automáticamente compañías/áreas
-//  ✔ refrescar navbar en tiempo real (crear/editar/eliminar compañía/área)
-//  ✔ resaltar compañía recién creada o editada
+// Contexto global para controlar el árbol del sidebar.
+// Provee:
+//  ✔ qué nodo está seleccionado
+//  ✔ qué nodos están expandidos
+//  ✔ refrescos real-time al crear/editar/eliminar
+//  ✔ highlight automático (selecciona + expande + scroll)
 // ============================================================
 
 import { createContext, useContext, useState } from "react";
@@ -23,22 +23,23 @@ type NavContextType = {
   refreshFlag: number;
   triggerRefresh: () => void;
 
-  // 🌟 NUEVO: Seleccionar y expandir automáticamente un nodo
+  // ⭐ Seleccionar + expandir + hacer scroll al nodo recién creado/editado
   highlightNode: (id: string) => void;
 };
 
 const NavContext = createContext<NavContextType | undefined>(undefined);
 
 // ============================================================
-// Provider
+// PROVIDER PRINCIPAL
 // ============================================================
 export function NavProvider({ children }: { children: ReactNode }) {
+  // Nodo seleccionado actualmente en el sidebar
   const [selected, setSelected] = useState("home");
 
-  // controla qué nodos están expandidos
+  // Qué nodos están expandidos (companías, áreas)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  // bandera para forzar recarga del árbol NAV (Sidebar)
+  // Bandera para refrescar árbol (ej: al crear/eliminar compañía/área)
   const [refreshFlag, setRefreshFlag] = useState(0);
 
   const expandNode = (id: string) =>
@@ -53,12 +54,36 @@ export function NavProvider({ children }: { children: ReactNode }) {
   const triggerRefresh = () => setRefreshFlag((x) => x + 1);
 
   // ============================================================
-  // 🌟 NUEVO: Resaltar una compañía/área recién creada o actualizada
+  // ⭐ highlightNode — la magia para navegar después de crear nodos
+  //
+  // Hace lo siguiente:
+  // 1. Expande la raíz ("companias")
+  // 2. Expande la compañía si el nodo es c-XX
+  // 3. Selecciona el nodo recién creado
+  // 4. Scroll al nodo real en el DOM
   // ============================================================
   const highlightNode = (id: string) => {
-    setSelected(id);       // selecciona en el sidebar
-    expandNode(id);        // lo expande
-    triggerRefresh();      // refresca el árbol del NAV
+    // 1) Siempre expandimos la raíz del árbol de compañías
+    expandNode("companias");
+
+    // 2) Si es una compañía (c-XX), expandirla también
+    if (id.startsWith("c-")) {
+      expandNode(id);
+    }
+
+    // 3) Seleccionar el nodo
+    setSelected(id);
+
+    // 4) Hacer scroll al nodo cuando el DOM lo pinte
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    }, 150);
   };
 
   return (
@@ -72,7 +97,7 @@ export function NavProvider({ children }: { children: ReactNode }) {
         toggleNode,
         refreshFlag,
         triggerRefresh,
-        highlightNode, // 👈 agregado
+        highlightNode,
       }}
     >
       {children}
@@ -81,7 +106,7 @@ export function NavProvider({ children }: { children: ReactNode }) {
 }
 
 // ============================================================
-// Hook
+// HOOK
 // ============================================================
 export function useNav() {
   const ctx = useContext(NavContext);

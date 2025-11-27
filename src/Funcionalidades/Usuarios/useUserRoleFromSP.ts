@@ -1,8 +1,8 @@
 // src/Funcionalidades/useUserRoleFromSP.ts
 
 import { useEffect, useState } from "react";
-import { useGraphServices } from "../graph/GrapServicesContext";
-import type { RolUsuario, UsuarioGD } from "../Models/UsuarioGD";
+import { useGraphServices } from "../../graph/GrapServicesContext";
+import type { RolUsuario, UsuarioGD } from "../../Models/UsuarioGD";
 
 /**
  * Hook que:

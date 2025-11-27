@@ -1,18 +1,28 @@
 // ============================================================
-// ModalEditarCompania.tsx
-// - Incluye autocomplete con chip visual (como ModalNuevaCompania)
-// - Compatible con roles, validaciones y actualización de compañía
-// - Código limpio, ordenado y totalmente comentado
+// src/components/Companias/ModalEditarCompania.tsx
+// ------------------------------------------------------------
+// Modal para EDITAR una compañía existente.
+// Ahora incluye:
+//   ✔ Validación global del nombre (InputReglas + REGLA_SHAREPOINT)
+//   ✔ Placeholder contextualizado
+//   ✔ Sanitización automática al escribir
+//   ✔ Validación antes de guardar cambios
 // ============================================================
 
-import { useEffect, useState, useRef } from "react";
-import "./ModalEditarCompania.css"; 
+import "./ModalEditarCompania.css";
+import { useEffect, useRef } from "react";
 import type { CompaniaGD } from "../../Models/CompaniaGD";
-import type { UsuarioGD } from "../../Models/UsuarioGD";
+
 import { useGraphServices } from "../../graph/GrapServicesContext";
 import { useNav } from "../Context/NavContext";
 
-type UsuarioBasic = { nombre: string; correo: string };
+import { useUserAutocomplete } from "../../Funcionalidades/Usuarios/useUserAutocomplete";
+import { useCompaniasActions } from "../../Funcionalidades/Companias/useCompaniasActions";
+import type { UsuarioBasic } from "../../Models/Commons";
+
+// 🔥 Nuevo sistema de reglas globales
+import { InputReglas } from "../inputs/InputReglas";
+import { REGLA_SHAREPOINT } from "../../utils/inputs/ReglasInputs";
 
 interface Props {
   abierto: boolean;
@@ -29,207 +39,92 @@ export default function ModalEditarCompania({
   onActualizada,
   CompaniasService,
 }: Props) {
-
+  // ============================================================
+  // Servicios globales
+  // ============================================================
   const { BuscarUsu, UsuariosGD, Areas } = useGraphServices();
   const { triggerRefresh } = useNav();
 
-  /* ============================================================
-     ESTADOS DEL MODAL
-  ============================================================ */
-  const [nombre, setNombre] = useState(compania.Title ?? "");
+  // ============================================================
+  // Hook unificado – edición de compañía
+  // ============================================================
+  const {
+    nombre,
+    setNombre,
+    seleccionado,
+    setSeleccionado,
+    loading,
+    error,
+    setError,
+    guardarCambios,
+  } = useCompaniasActions({
+    modo: "editar",
+    compania,
+    UsuariosGD,
+    Areas,
+    CompaniasService,
+    onActualizada,
+    onCerrar,
+    triggerRefresh,
+  });
 
-  const [texto, setTexto] = useState(compania.AdministradorCom ?? "");
-  const [resultados, setResultados] = useState<UsuarioBasic[]>([]);
-  const [seleccionado, setSeleccionado] = useState<UsuarioBasic | null>(null);
+  // ============================================================
+  // Autocomplete
+  // ============================================================
+  const {
+    query: texto,
+    setQuery: setTexto,
+    results: resultados,
+    loading: loadingBuscador,
+    dropdownRef,
+    clearResults,
+    reset: resetAutocomplete,
+  } = useUserAutocomplete({ BuscarUsu });
 
-  const [loadingBuscador, setLoadingBuscador] = useState(false);
-  const [loading, setLoading] = useState(false);
+  // ============================================================
+  // Reset cuando se abre el modal por primera vez
+  // ============================================================
+  const wasOpen = useRef(false);
 
-  const [error, setError] = useState<string | null>(null);
-
-  const correoAdminOriginal = compania.AdministradorCom ?? "";
-
-  // para cerrar dropdown cuando se clickea afuera
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  /* ============================================================
-     RESET MODAL AL ABRIR
-  ============================================================ */
   useEffect(() => {
-  if (abierto) {
-    setNombre(compania.Title ?? "");
-
-    // 🟦 Muestra el chip con el administrador actual
-    if (compania.AdministradorCom) {
-      setSeleccionado({
-        nombre: compania.AdministradorCom,
-        correo: compania.AdministradorCom,
-      });
-    } else {
-      setSeleccionado(null);
+    if (abierto && !wasOpen.current) {
+      resetAutocomplete();
     }
-
-    // 🟥 Dejar input vacío para NO disparar el autocomplete
-    setTexto("");
-
-    setResultados([]);
-    setError(null);
-    setLoading(false);
-  }
-}, [abierto, compania]);
-
-
-
-  /* ============================================================
-     AUTOCOMPLETE (con debounce)
-  ============================================================ */
-  useEffect(() => {
-    if (!abierto) return;
-    if (!texto.trim()) {
-      setResultados([]);
-      return;
-    }
-
-    const delay = setTimeout(async () => {
-      try {
-        setLoadingBuscador(true);
-        const lista = await BuscarUsu.buscar(texto.trim());
-        setResultados(lista);
-      } finally {
-        setLoadingBuscador(false);
-      }
-    }, 350);
-
-    return () => clearTimeout(delay);
-  }, [texto, BuscarUsu, abierto]);
-
-  /* ============================================================
-     VALIDAR ROL DEL NUEVO ADMIN
-  ============================================================ */
-  function validarRolAdmin(user: UsuarioGD | null): string | null {
-    if (!user) return null;
-
-    if (user.Rol === "AdministradorCom") {
-      if (user.CompaniaID === compania.Title) return null;
-      return "Este usuario ya es administrador de otra compañía.";
-    }
-
-    if (user.Rol === "AdministradorGeneral") {
-      return "Un Administrador General no puede ser administrador de una compañía.";
-    }
-
-    return null;
-  }
-
-  /* ============================================================
-     GUARDAR CAMBIOS
-  ============================================================ */
-  const handleGuardar = async () => {
-    setError(null);
-
-    if (!nombre.trim()) {
-      setError("El nombre de la compañía es obligatorio.");
-      return;
-    }
-
-    const correoFinal = (seleccionado?.correo || texto).trim().toLowerCase();
-    if (!correoFinal) {
-      setError("Debes definir un administrador.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // validar rol del admin nuevo
-      const usuarioNuevo = await UsuariosGD.getByCorreo(correoFinal);
-      const motivo = validarRolAdmin(usuarioNuevo);
-      if (motivo) {
-        setError(motivo);
-        setLoading(false);
-        return;
-      }
-
-      // si cambió el admin → resetear al antiguo
-      if (correoAdminOriginal && correoAdminOriginal !== correoFinal) {
-        const anterior = await UsuariosGD.getByCorreo(correoAdminOriginal);
-        if (anterior) {
-          await UsuariosGD.upsertByCorreo({
-            Nombre: anterior.Title || anterior.Correo,
-            Correo: anterior.Correo,
-            Rol: "SinAcceso",
-            CompaniaID: undefined,
-            AreaID: undefined,
-          });
-        }
-      }
-
-      // actualizar nuevo admin
-      const nombreAdmin = seleccionado?.nombre || usuarioNuevo?.Title || correoFinal;
-      await UsuariosGD.upsertByCorreo({
-        Nombre: nombreAdmin,
-        Correo: correoFinal,
-        Rol: "AdministradorCom",
-        CompaniaID: nombre.trim(),
-        AreaID: undefined,
-      });
-
-      // actualizar compañía
-      const oldTitle = compania.Title ?? "";
-      const newTitle = nombre.trim();
-
-      const actualizada: CompaniaGD =
-        await CompaniasService.updateNombreYAdmin(
-          compania.Id,
-          oldTitle,
-          newTitle,
-          correoFinal
-        );
-
-      // si cambió nombre → actualizar usuarios y áreas
-      if (oldTitle !== newTitle) {
-        const users = await UsuariosGD.getAll();
-        for (const u of users.filter((u) => u.CompaniaID === oldTitle)) {
-          await UsuariosGD.upsertByCorreo({
-            Nombre: u.Title || u.Correo,
-            Correo: u.Correo,
-            Rol: u.Rol,
-            CompaniaID: newTitle,
-            AreaID: u.AreaID,
-          });
-        }
-
-        const areas = await Areas.getAll();
-        for (const area of areas ?? []) {
-  if (area.NombreCompania === oldTitle) {
-
-    // 🔥 EVITAR ERROR — aseguramos que tenga ID
-    if (!area.Id) continue;
-
-    await Areas.update(area.Id, { NombreCompania: newTitle });
-  }
-}
-
-      }
-
-      onActualizada(actualizada);
-      triggerRefresh();
-      onCerrar();
-
-    } catch (err) {
-      console.error("❌ Error actualizando compañía:", err);
-      setError("Ocurrió un error al actualizar la compañía.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    wasOpen.current = abierto;
+  }, [abierto]);
 
   if (!abierto) return null;
 
-  /* ============================================================
-     RENDER DEL MODAL
-  ============================================================ */
+  // ============================================================
+  // Seleccionar usuario del autocomplete
+  // ============================================================
+  function handleSelectUsuario(u: UsuarioBasic) {
+    setSeleccionado(u);
+    setTexto("");
+    clearResults();
+  }
+
+  // ============================================================
+  // Guardar cambios → aplicamos validación del nombre
+  // ============================================================
+  async function handleGuardarClick() {
+    // Validar nombre con la regla global
+    const errorNombre = REGLA_SHAREPOINT.validar?.(nombre);
+    if (errorNombre) {
+      setError(errorNombre);
+      return;
+    }
+
+    const correoFinal = (seleccionado?.correo || texto || "")
+      .trim()
+      .toLowerCase();
+
+    await guardarCambios(correoFinal);
+  }
+
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div className="modal-backdrop">
       <div className="modal-card modal-editar-compania">
@@ -243,56 +138,57 @@ export default function ModalEditarCompania({
         {/* BODY */}
         <div className="modal-body">
 
-          {/* NOMBRE */}
+          {/* NOMBRE DE LA COMPAÑÍA — ahora con InputReglas */}
           <label className="modal-label">Nombre de la compañía:</label>
-          <input
-            type="text"
-            className="modal-input"
+
+          <InputReglas
             value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
+            onChange={setNombre}
+            regla={{
+              ...REGLA_SHAREPOINT,
+              placeholder: `Ej: Estudio de Moda • ${REGLA_SHAREPOINT.placeholder}`
+            }}
           />
 
-          {/* AUTOCOMPLETE */}
+          {/* ADMINISTRADOR */}
           <label className="modal-label">Administrador:</label>
 
           <div className="autocomplete-container" ref={dropdownRef}>
+            
+            {/* Input del buscador */}
             <input
               type="text"
               value={texto}
               onChange={(e) => {
                 setTexto(e.target.value);
                 setSeleccionado(null);
+                setError(null);
               }}
               className="autocomplete-input"
-              placeholder="Buscar usuario por nombre o correo..."
+              placeholder="Buscar usuario..."
             />
 
             {loadingBuscador && (
               <div className="autocomplete-loading">Buscando...</div>
             )}
 
-         {/* CHIP DEL ADMIN, IGUAL AL DE NUEVA COMPAÑÍA */}
-{seleccionado && (
-  <div className="selected-admin-chip">
-    
-    <div className="selected-admin-texts">
-      <div className="selected-admin-name">{seleccionado.nombre}</div>
-      <div className="selected-admin-email">{seleccionado.correo}</div>
-    </div>
-
-    <button
-      className="selected-admin-remove"
-      onClick={() => {
-        setSeleccionado(null);
-        setTexto("");
-      }}
-    >
-      Quitar
-    </button>
-
-  </div>
-)}
-
+            {seleccionado && (
+              <div className="selected-admin-chip">
+                <div className="selected-admin-texts">
+                  <div className="selected-admin-name">{seleccionado.nombre}</div>
+                  <div className="selected-admin-email">{seleccionado.correo}</div>
+                </div>
+                <button
+                  className="selected-admin-remove"
+                  onClick={() => {
+                    setSeleccionado(null);
+                    setTexto("");
+                  }}
+                >
+                  Quitar
+                </button>
+              </div>
+            )}
 
             {resultados.length > 0 && !seleccionado && (
               <div className="autocomplete-dropdown">
@@ -300,11 +196,7 @@ export default function ModalEditarCompania({
                   <div
                     key={u.correo}
                     className="autocomplete-item"
-                    onClick={() => {
-                      setSeleccionado(u);
-                      setTexto("");
-                      setResultados([]);
-                    }}
+                    onClick={() => handleSelectUsuario(u)}
                   >
                     <div className="autocomplete-item-name">{u.nombre}</div>
                     <div className="autocomplete-item-email">{u.correo}</div>
@@ -312,17 +204,28 @@ export default function ModalEditarCompania({
                 ))}
               </div>
             )}
+
           </div>
 
+          {/* ERROR GLOBAL */}
           {error && <p className="modal-error">{error}</p>}
         </div>
 
         {/* FOOTER */}
         <div className="modal-footer">
-          <button className="btn-secondary" onClick={onCerrar} disabled={loading}>
+          <button
+            className="btn-secondary"
+            onClick={onCerrar}
+            disabled={loading}
+          >
             Cancelar
           </button>
-          <button className="btn-primary" onClick={handleGuardar} disabled={loading}>
+
+          <button
+            className="btn-primary"
+            onClick={handleGuardarClick}
+            disabled={loading}
+          >
             {loading ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>

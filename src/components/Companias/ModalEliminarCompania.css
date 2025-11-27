@@ -140,6 +140,12 @@
 .btn-accion-eliminar {
   background: #fee2e2;
   color: #b91c1c;
+  padding: 0.5rem 1.3rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
 }
 
 .btn-accion-eliminar:hover {

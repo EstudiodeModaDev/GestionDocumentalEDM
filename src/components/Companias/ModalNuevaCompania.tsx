@@ -1,17 +1,39 @@
-import { useState, useEffect, useRef } from "react";
+// ============================================================
+// src/components/Companias/ModalNuevaCompania.tsx
+// ------------------------------------------------------------
+// Modal para CREAR una compañía nueva.
+// Ahora incluye:
+//   ✔ Input global con reglas (InputReglas + REGLA_SHAREPOINT)
+//   ✔ Validación automática en tiempo real
+//   ✔ Bloqueo del botón si el nombre es inválido
+//   ✔ Sin duplicar lógica ni romper useCompaniasActions
+// ============================================================
+
 import "./ModalNuevaCompania.css";
+import { useEffect } from "react";
 import type { CompaniaGD } from "../../Models/CompaniaGD";
-import type { UsuarioGD } from "../../Models/UsuarioGD";
+
+// Servicios
 import { useGraphServices } from "../../graph/GrapServicesContext";
+import { useNav } from "../Context/NavContext";
+
+// Autocomplete
+import { useUserAutocomplete } from "../../Funcionalidades/Usuarios/useUserAutocomplete";
+
+// Lógica unificada de creación
+import { useCompaniasActions } from "../../Funcionalidades/Companias/useCompaniasActions";
+
+// Nuevo sistema de validación global
+import { InputReglas } from "../inputs/InputReglas";
+import { REGLA_SHAREPOINT } from "../../utils/inputs/ReglasInputs";
+// import { REGLA_SHAREPOINT } from "../../utils/ReglasInputs";
 
 interface Props {
   abierto: boolean;
   onCerrar: () => void;
-  onCreada: (compania: CompaniaGD) => void;
-  CompaniasService: any; // servicio que tiene create()
+  onCreada: (c: CompaniaGD) => void;
+  CompaniasService: any;
 }
-
-type UsuarioBasic = { nombre: string; correo: string };
 
 export default function ModalNuevaCompania({
   abierto,
@@ -19,255 +41,154 @@ export default function ModalNuevaCompania({
   onCreada,
   CompaniasService,
 }: Props) {
-  /* ============================================================
-     🔗 Servicios (BuscarUsu y UsuariosGD)
-  ============================================================ */
-  const { BuscarUsu, UsuariosGD } = useGraphServices();
 
-  /* ============================================================
-     🧱 Estados del modal (SIEMPRE antes del return condicional)
-  ============================================================ */
+  // ============================================================
+  // Servicios (Graph)
+  // ============================================================
+  const { UsuariosGD, BuscarUsu } = useGraphServices();
 
-  // Nombre de la compañía
-  const [nombre, setNombre] = useState("");
+  // ============================================================
+  // NAV (para refrescar y resaltar nueva compañía)
+  // ============================================================
+  const { triggerRefresh, highlightNode } = useNav();
 
-  // Texto que escribe el usuario en el input del buscador
-  const [adminTexto, setAdminTexto] = useState("");
+  // ============================================================
+  // Hook unificado — modo CREAR
+  // ============================================================
+  const {
+    nombre,
+    setNombre,
+    seleccionado,
+    setSeleccionado,
+    loading,
+    error,
+    crearCompania,
+    setError,
+  } = useCompaniasActions({
+    modo: "crear",
+    UsuariosGD,
+    CompaniasService,
+    onCreada,
+    onCerrar,
+    triggerRefresh,
+  });
 
-  // Resultados devueltos por BuscarUsu
-  const [resultados, setResultados] = useState<UsuarioBasic[]>([]);
+  // ============================================================
+  // Autocomplete para seleccionar Administrador
+  // ============================================================
+  const {
+    query: adminTexto,
+    setQuery: setAdminTexto,
+    results: resultados,
+    loading: loadingBuscador,
+    dropdownRef,
+    clearResults,
+    reset: resetAutocomplete,
+  } = useUserAutocomplete({ BuscarUsu });
 
-  // Usuario seleccionado como administrador
-  const [seleccionado, setSeleccionado] = useState<UsuarioBasic | null>(null);
-
-  // Estados de carga
-  const [loading, setLoading] = useState(false);
-  const [loadingBuscador, setLoadingBuscador] = useState(false);
-
-  // Error general del modal
-  const [error, setError] = useState<string | null>(null);
-
-  // Ref para el contenedor del dropdown (por si luego quieres cerrar al hacer clic afuera)
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  /* ============================================================
-     🧹 Resetear modal al abrir
-  ============================================================ */
+  // ============================================================
+  // Reset al abrir el modal
+  // ============================================================
   useEffect(() => {
     if (abierto) {
-      setNombre("");
-      setAdminTexto("");
-      setResultados([]);
-      setSeleccionado(null);
-      setError(null);
-      setLoading(false);
+      setNombre("");             // reset nombre
+      setSeleccionado(null);     // reset admin seleccionado
+      setError(null);            // reset errores
+      resetAutocomplete();       // reset buscador
     }
   }, [abierto]);
 
-  /* ============================================================
-     🔎 AUTOCOMPLETE (con debounce mientras se escribe)
-  ============================================================ */
-  useEffect(() => {
-    // Si el input está vacío, limpiamos resultados
-    if (!adminTexto.trim()) {
-      setResultados([]);
-      return;
-    }
-
-    const delay = setTimeout(async () => {
-      try {
-        setLoadingBuscador(true);
-        const lista = await BuscarUsu.buscar(adminTexto.trim());
-        setResultados(lista);
-      } catch (err) {
-        console.error("❌ Error buscando usuarios:", err);
-      } finally {
-        setLoadingBuscador(false);
-      }
-    }, 350); // pequeño debounce
-
-    return () => clearTimeout(delay);
-  }, [adminTexto, BuscarUsu]);
-
-  /* ============================================================
-     🛑 VALIDACIÓN DE ROL PARA ADMINISTRADOR DE COMPAÑÍA
-  ============================================================ */
-  function validarRolParaAdminCom(user: UsuarioGD | null): string | null {
-    if (!user) return null;
-
-    if (user.Rol === "AdministradorCom") {
-      return "Este usuario ya es administrador de otra compañía.";
-    }
-
-    if (user.Rol === "AdministradorGeneral") {
-      return "Un Administrador General no puede ser Administrador de una compañía.";
-    }
-
-    // UsuarioArea o ResponsableArea → SE PUEDE actualizar sin problema
-    return null;
-  }
-
-  /* ============================================================
-     🧩 CREAR COMPAÑÍA (flujo completo)
-  ============================================================ */
-  const crearCompania = async () => {
-    setError(null);
-
-    // Validación simple
-    if (!nombre.trim()) {
-      setError("Debes ingresar el nombre de la compañía.");
-      return;
-    }
-
-    if (!seleccionado) {
-      setError("Debes seleccionar un administrador.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const correo = seleccionado.correo.trim().toLowerCase();
-
-      // 1️⃣ Ver si ya existe como usuario en UsuariosGD
-      const existente = await UsuariosGD.getByCorreo(correo);
-
-      // 2️⃣ Regla especial según rol
-      const motivoError = validarRolParaAdminCom(existente);
-      if (motivoError) {
-        setError(motivoError);
-        setLoading(false);
-        return;
-      }
-
-      // 3️⃣ Crear/Actualizar usuario → será AdminCom
-      //    👇 Aseguramos que Nombre sea SIEMPRE string (sin undefined)
-      await UsuariosGD.upsertByCorreo({
-        Nombre: seleccionado.nombre || correo,
-        Correo: correo,
-        Rol: "AdministradorCom",
-        CompaniaID: nombre.trim(), // nombre de la nueva compañía
-        AreaID: undefined, // los admin NO tienen área
-      });
-
-      // 4️⃣ Crear la compañía en SharePoint (tu servicio)
-      const nuevaCompania = {
-        Title: nombre.trim(),
-        AdministradorCom: correo,
-        FechaCreacion: new Date().toISOString(),
-        Activa: true,
-      };
-
-      const creada: CompaniaGD = await CompaniasService.create(nuevaCompania);
-
-      // 5️⃣ Actualizar estado del padre
-      onCreada(creada);
-
-      // 6️⃣ Cerrar modal
-      onCerrar();
-    } catch (err) {
-      console.error("❌ Error creando compañía:", err);
-      setError("Ocurrió un error al crear la compañía.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ============================================================
-     ⚠️ RETURN CONDICIONAL
-  ============================================================ */
   if (!abierto) return null;
 
-  /* ============================================================
-     🧩 RENDER DEL MODAL
-  ============================================================ */
+  // ============================================================
+  // Selección desde autocomplete
+  // ============================================================
+  function handleSelect(u: { nombre: string; correo: string }) {
+    setSeleccionado(u);
+    setAdminTexto("");
+    clearResults();
+  }
+
+  // ============================================================
+  // RENDER DEL MODAL
+  // ============================================================
   return (
     <div className="modal-backdrop">
       <div className="modal-card modal-nueva-compania">
-        {/* Header */}
+
+        {/* HEADER */}
         <div className="modal-header">
           <h2>Nueva Compañía</h2>
-          <button className="close-btn" onClick={onCerrar}>
-            ✕
-          </button>
+          <button className="close-btn" onClick={onCerrar}>✕</button>
         </div>
 
-        {/* Cuerpo */}
+        {/* BODY */}
         <div className="modal-body">
-          {/* Nombre */}
-          <label className="modal-label">Nombre de la compañía:</label>
-          <input
-            type="text"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder="Ej: Estudio de Moda"
-            className="modal-input"
-          />
 
-          {/* Administrador */}
+          {/* NOMBRE CON VALIDACIÓN GLOBAL */}
+          <label className="modal-label">Nombre de la compañía:</label>
+
+          {/*  
+            InputReglas aplica automáticamente:
+            ✔ placeholder global
+            ✔ sanitización al escribir
+            ✔ validación automática
+            ✔ mensaje de error debajo del input
+          */}
+        <InputReglas
+  value={nombre}
+  onChange={setNombre}
+  regla={{
+    ...REGLA_SHAREPOINT,
+    placeholder: `Ej: Estudio de Moda • ${REGLA_SHAREPOINT.placeholder}`
+  }}
+/>
+
+
+          {/* ADMINISTRADOR */}
           <label className="modal-label">Administrador:</label>
 
           <div className="autocomplete-container" ref={dropdownRef}>
-            {/* Input de búsqueda (solo busca, NO refleja el seleccionado) */}
             <input
-              type="text"
+              className="autocomplete-input"
               value={adminTexto}
               onChange={(e) => {
                 setAdminTexto(e.target.value);
-                // Si el usuario vuelve a escribir, no borramos la selección previa
-                // solo permitimos seguir buscando más opciones si quiere.
+                setError(null); // limpia errores lógicos
+                setSeleccionado(null);
               }}
-              className="autocomplete-input"
-              placeholder="Buscar usuario por nombre o correo..."
+              placeholder="Buscar usuario..."
             />
 
-            {/* Estado de carga del buscador */}
             {loadingBuscador && (
               <div className="autocomplete-loading">Buscando...</div>
             )}
 
-            {/* Dropdown de resultados */}
             {resultados.length > 0 && (
               <div className="autocomplete-dropdown">
-                {resultados.map((u) => {
-                  const isSelected = seleccionado?.correo === u.correo;
-                  return (
-                    <div
-                      key={u.correo}
-                      className={`autocomplete-item ${
-                        isSelected ? "selected" : ""
-                      }`}
-                      onClick={() => {
-                        // ✅ Guardamos el usuario seleccionado
-                        setSeleccionado(u);
-
-                        // ✅ Limpiamos el texto de búsqueda
-                        setAdminTexto("");
-
-                        // ✅ Cerramos el dropdown
-                        setResultados([]);
-                      }}
-                    >
-                      <div className="autocomplete-item-name">{u.nombre}</div>
-                      <div className="autocomplete-item-email">{u.correo}</div>
-                    </div>
-                  );
-                })}
+                {resultados.map((u) => (
+                  <div
+                    key={u.correo}
+                    className="autocomplete-item"
+                    onClick={() => handleSelect(u)}
+                  >
+                    <div>{u.nombre}</div>
+                    <div className="autocomplete-item-email">{u.correo}</div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Tarjeta del usuario seleccionado */}
+          {/* CHIP DEL ADMIN SELECCIONADO */}
           {seleccionado && (
             <div className="selected-admin-chip">
-              <div className="selected-admin-texts">
+              <div>
                 <div className="selected-admin-name">{seleccionado.nombre}</div>
-                <div className="selected-admin-email">
-                  {seleccionado.correo}
-                </div>
+                <div className="selected-admin-email">{seleccionado.correo}</div>
               </div>
+
               <button
-                type="button"
                 className="selected-admin-remove"
                 onClick={() => setSeleccionado(null)}
               >
@@ -276,24 +197,48 @@ export default function ModalNuevaCompania({
             </div>
           )}
 
-          {/* Errores */}
+          {/* ERRORES (useCompaniasActions) */}
           {error && <p className="modal-error">{error}</p>}
         </div>
 
-        {/* Footer */}
+        {/* FOOTER */}
         <div className="modal-footer">
-          <button className="btn-secondary" onClick={onCerrar} disabled={loading}>
+          <button className="btn-secondary" onClick={onCerrar}>
             Cancelar
           </button>
 
           <button
             className="btn-primary"
-            onClick={crearCompania}
+            onClick={async () => {
+
+              // ============================================================
+              // Validación antes de CREAR compañía
+              // ============================================================
+              const errorNombre = REGLA_SHAREPOINT.validar?.(nombre);
+              if (errorNombre) {
+                setError(errorNombre); // reutiliza el sistema nativo del modal
+                return;
+              }
+
+              // Ejecutar creación
+              const nueva = await crearCompania();
+
+              // Si se creó, refrescar UI y resaltar en el árbol
+              if (nueva?.Id) {
+                triggerRefresh();
+
+                // Espera a que el árbol sea reconstruido antes de hacer highlight
+                setTimeout(() => {
+                  highlightNode(`c-${nueva.Id}`);
+                }, 300);
+              }
+            }}
             disabled={loading}
           >
             {loading ? "Creando..." : "Crear Compañía"}
           </button>
         </div>
+
       </div>
     </div>
   );
